@@ -1,0 +1,6 @@
+{
+  "name": "Aqarat Al-Muthanna",
+  "description": "منصة عقارات المثنى الإلكترونية المخصصة لمدينة السماوة وأقضية المحافظة - للبيوت والأراضي والشقق",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

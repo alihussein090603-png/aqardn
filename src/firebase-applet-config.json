@@ -1,0 +1,9 @@
+{
+  "apiKey": "mock-api-key-aqarat-muthanna",
+  "authDomain": "aqarat-muthanna-enterprise-321.firebaseapp.com",
+  "projectId": "aqarat-muthanna-enterprise-321",
+  "storageBucket": "aqarat-muthanna-enterprise-321.appspot.com",
+  "messagingSenderId": "123456789012",
+  "appId": "1:123456789012:web:1234567890abcdef",
+  "firestoreDatabaseId": "(default)"
+}

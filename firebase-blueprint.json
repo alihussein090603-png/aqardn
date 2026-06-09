@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "Authenticated user profile representing seekers, verified brokers, or platform admins.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication UID of the user."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the broker, seeker, or agency admin."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the registered user."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Formatted international contact number (e.g., +96477xxxxxxx)."
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "Pre-formatted international chat link or phone connection."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["seeker", "broker", "admin"],
+          "description": "Role determining access levels on the platfrom."
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Administrative flag confirming that coordinates and license are verified."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of profile creation."
+        }
+      },
+      "required": ["uid", "name", "email", "phone", "whatsapp", "role", "isVerified", "createdAt"]
+    },
+    "property": {
+      "title": "Property",
+      "description": "Real estate listing including land structures, houses, and apartments in Al-Muthanna.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Auto-generated property document ID."
+        },
+        "brokerId": {
+          "type": "string",
+          "description": "Foreign key reference linking to owner user UID."
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the listing."
+        },
+        "description": {
+          "type": "string",
+          "description": "Full architectural, financial, and regulatory description."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["house", "apartment", "commercial", "land"],
+          "description": "Type of real estate property."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["sale", "rent"],
+          "description": "Transaction objective (purchase or lease)."
+        },
+        "price": {
+          "type": "number",
+          "description": "Price value of the property transaction."
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["IQD", "USD"],
+          "description": "Currency of the price estimate."
+        },
+        "district": {
+          "type": "string",
+          "description": "Al-Muthanna main administrative district name."
+        },
+        "neighborhood": {
+          "type": "string",
+          "description": "Local neighborhood area."
+        },
+        "area": {
+          "type": "number",
+          "description": "Total plot or layout area measured in square meters."
+        },
+        "rooms": {
+          "type": "number",
+          "description": "Number of bedrooms (optional for land)."
+        },
+        "bathrooms": {
+          "type": "number",
+          "description": "Number of ceramic bathrooms (optional for land)."
+        },
+        "images": {
+          "type": "array",
+          "description": "List of absolute Firebase Storage image URLs."
+        },
+        "viewsCount": {
+          "type": "number",
+          "description": "Counter indicating listing detail impressions."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "active", "sold"],
+          "description": "Current state of the real estate listing."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "brokerId",
+        "title",
+        "description",
+        "category",
+        "type",
+        "price",
+        "currency",
+        "district",
+        "neighborhood",
+        "area",
+        "images",
+        "viewsCount",
+        "status",
+        "createdAt"
+      ]
+    },
+    "wishlist": {
+      "title": "Wishlist",
+      "description": "User specific list containing bookmarked properties.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Auth UID of the user owning the wishlist."
+        },
+        "propertyIds": {
+          "type": "array",
+          "description": "Array of strings referencing property document IDs."
+        }
+      },
+      "required": ["userId", "propertyIds"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/user"
+      },
+      "description": "Users and verified broker profiles."
+    },
+    "properties/{propertyId}": {
+      "schema": {
+        "$ref": "#/entities/property"
+      },
+      "description": "Real estate properties recorded on the platform."
+    },
+    "wishlists/{userId}": {
+      "schema": {
+        "$ref": "#/entities/wishlist"
+      },
+      "description": "Saved properties indices for user access."
+    }
+  }
+}

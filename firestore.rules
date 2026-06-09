@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global administrative validator function retrieving the live auth context role attribute
+    function isAdmin() {
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Secure database validation for users collection
+    match /users/{userId} {
+      // Global read authorization to allow active search of broker offices
+      allow read: if true;
+      
+      // Strict modification privilege checking: restricted to authentic owner or system Admin
+      allow write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+    }
+
+    // Secure database validation for properties collection
+    match /properties/{propertyId} {
+      // Global read access to allow potential buyers to view active real estate offers
+      allow read: if true;
+
+      // Exclusive write, update and delete permission control checks
+      allow create: if request.auth != null && (isAdmin() || request.resource.data.brokerId == request.auth.uid);
+      allow update, delete: if request.auth != null && (isAdmin() || resource.data.brokerId == request.auth.uid);
+    }
+
+    // Security matching pattern for user wishlist records
+    match /wishlists/{userId} {
+      allow read, write: if (request.auth != null && request.auth.uid == userId) || isAdmin();
+    }
+  }
+}
