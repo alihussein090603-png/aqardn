@@ -4,7 +4,7 @@ import {
   Calendar, Phone, MessageSquare, ArrowUpRight, BarChart3, HelpCircle 
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { db, isMockConfig } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useAppState } from '../../context/AppStateContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
@@ -27,6 +27,13 @@ export default function DashboardAnalytics(): React.ReactElement {
       return;
     }
 
+    if (isMockConfig) {
+      setIsLoading(false);
+      return;
+    }
+
+    let unsubscribe = () => {};
+
     setIsLoading(true);
     const propertiesRef = collection(db, 'properties');
     const q = query(
@@ -34,7 +41,7 @@ export default function DashboardAnalytics(): React.ReactElement {
       where('brokerId', '==', currentUser.id || '')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Property[] = snapshot.docs.map((docSnap) => {
         const dData = docSnap.data();
         return {

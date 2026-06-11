@@ -41,6 +41,8 @@ export default function App(): React.ReactElement {
     activePage = 'detail';
   }
 
+  const isAdminRoute = location.pathname.startsWith('/admin-dashboard') || location.pathname === '/dashboard/admin';
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans selection:bg-emerald-800 selection:text-white flex flex-col justify-between text-right" dir="rtl">
       
@@ -71,19 +73,21 @@ export default function App(): React.ReactElement {
       )}
 
       {/* 2. Global application Header */}
-      <Header
-        currentUser={currentUser}
-        onSetUser={(broker) => {
-          if (broker) {
-            login(broker);
-          } else {
-            logout();
-          }
-        }}
-        activePage={activePage}
-        onNavigate={handleNavigate}
-        mockBrokers={mockBrokers}
-      />
+      {!isAdminRoute && (
+        <Header
+          currentUser={currentUser}
+          onSetUser={(broker) => {
+            if (broker) {
+              login(broker);
+            } else {
+              logout();
+            }
+          }}
+          activePage={activePage}
+          onNavigate={handleNavigate}
+          mockBrokers={mockBrokers}
+        />
+      )}
 
       {/* 3. Main content wrapper with router views */}
       <main className="flex-grow min-h-[70vh]">
@@ -91,19 +95,21 @@ export default function App(): React.ReactElement {
       </main>
 
       {/* 4. Global application Footer */}
-      <Footer
-        onNavigate={handleNavigate}
-        onSetCategoryFilter={(category) => {
-          // Sync context category filter on direct footer selection clicks
-          setFilters((prev) => ({
-            ...prev,
-            category: category,
-          }));
-        }}
-      />
+      {!isAdminRoute && (
+        <Footer
+          onNavigate={handleNavigate}
+          onSetCategoryFilter={(category) => {
+            // Sync context category filter on direct footer selection clicks
+            setFilters((prev) => ({
+              ...prev,
+              category: category,
+            }));
+          }}
+        />
+      )}
 
       {/* 5. Mobile Global Floating Navigation Bar */}
-      <MobileBottomNav />
+      {!isAdminRoute && <MobileBottomNav />}
 
     </div>
   );

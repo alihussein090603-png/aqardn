@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { X, Bell, BellOff, Trash2, ShieldCheck, Sparkles, Filter, CheckCircle2, AlertCircle } from 'lucide-react';
-import { DISTRICTS, NEIGHBORHOODS, Property } from '../../types';
+import { X, Bell, BellOff, Trash2, ShieldCheck, Sparkles, Filter, CheckCircle2, AlertCircle, User } from 'lucide-react';
+import { DISTRICTS, NEIGHBORHOODS, Property, LeadRequest } from '../../types';
+import { useAppState } from '../../context/AppStateContext';
 
 export interface PropertyAlert {
   id: string;
@@ -32,12 +33,15 @@ export default function PropertyAlertModal({
   propertiesList,
   onShowToast
 }: PropertyAlertModalProps): React.ReactElement | null {
+  const { addLead, addInquiry } = useAppState();
+
   const [alerts, setAlerts] = useState<PropertyAlert[]>(() => {
     const saved = localStorage.getItem('aqarat_smart_alerts');
     return saved ? JSON.parse(saved) : [];
   });
 
   // Form State
+  const [clientName, setClientName] = useState('');
   const [district, setDistrict] = useState('السماوة');
   const [neighborhood, setNeighborhood] = useState('كل المناطق');
   const [category, setCategory] = useState<'all' | 'house' | 'apartment' | 'commercial' | 'land'>('all');
@@ -79,13 +83,19 @@ export default function PropertyAlertModal({
   const handleCreateAlert = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!clientName.trim() || clientName.trim().length < 3) {
+      onShowToast('⚠️ يرجى إدخال اسمك الكامل (بحد أدنى 3 أحرف) لتوجيه الطلب بشكل صحيح للمكاتب.', 'system');
+      return;
+    }
+
     if (!phoneOrWhatsapp.trim() || phoneOrWhatsapp.length < 10) {
       onShowToast('⚠️ يرجى إدخال رقم هاتف أو واتساب عراقي صالح (10 أرقام على الأقل) لإرسال التنبيهات.', 'system');
       return;
     }
 
+    const alertId = `alert-${Date.now()}`;
     const newAlert: PropertyAlert = {
-      id: `alert-${Date.now()}`,
+      id: alertId,
       district,
       neighborhood,
       category,
@@ -97,10 +107,67 @@ export default function PropertyAlertModal({
     };
 
     setAlerts((prev) => [newAlert, ...prev]);
-    onShowToast('🔔 تم تفعيل وإعداد التنبيه الذكي بنجاح! سنقوم بمطابقة العقارات فوراً.', 'system');
+
+    // 1. Double Ingestion: Push a LeadRequest to the Platform-Wide Matchmaking dashboard
+    const newLead: LeadRequest = {
+      id: `lead-user-${Date.now()}`,
+      clientName: clientName.trim(),
+      clientPhone: phoneOrWhatsapp.trim(),
+      clientWhatsApp: phoneOrWhatsapp.trim().startsWith('07') ? '964' + phoneOrWhatsapp.trim().substring(1) : phoneOrWhatsapp.trim(),
+      requiredCategory: category,
+      transactionType: transactionType,
+      preferredDistrict: district,
+      preferredNeighborhood: neighborhood,
+      budgetMin: null,
+      budgetMax: maxPriceIQD !== '' ? parseFloat(maxPriceIQD) : null,
+      minArea: null,
+      notes: `طلب مطابقة ذكي مقدم ذاتياً من بوابة زوار المنصة لموقع ${district} - ${neighborhood}. الميزانية القصوى المتوفرة: ${maxPriceIQD ? maxPriceIQD + ' مليون د.ع' : 'بدون حد'}`,
+      createdAt: new Date().toISOString().split('T')[0],
+      status: 'active',
+      brokerId: 'system' // mark as system-wide public lead so any broker can easily match it
+    };
+
+    addLead(newLead);
+
+    // 2. Perform automated matching logic against context properties
+    const matchedProperties = propertiesList.filter((prop) => {
+      if (prop.status && prop.status !== 'active') return false;
+      if (district !== 'كل الأقضية' && prop.district !== district) return false;
+      if (district !== 'كل الأقضية' && neighborhood !== 'كل المناطق' && neighborhood !== '' && prop.neighborhood !== neighborhood) return false;
+      if (category !== 'all' && prop.category !== category) return false;
+      if (transactionType !== 'all' && prop.transactionType !== transactionType) return false;
+      if (maxPriceIQD !== '') {
+        const parsedMax = parseFloat(maxPriceIQD);
+        if (prop.priceIQD > parsedMax) return false;
+      }
+      return true;
+    });
+
+    // 3. Dispatch automated match inquiries to the owner brokers of matched properties
+    matchedProperties.forEach((prop) => {
+      const brokerId = prop.broker?.id || 'system_broker';
+      const notificationInquiry = {
+        id: `inquiry-notify-${Date.now()}-${prop.id}-${Math.floor(Math.random() * 1000)}`,
+        propertyId: prop.id,
+        propertyTitle: prop.title,
+        clientName: clientName.trim(),
+        clientPhone: phoneOrWhatsapp.trim(),
+        messageText: `⚠️ إشعار ربط ومطابقة ذكية عاجلة: لدينا زبون مهتم ومطابق تماماً لمواصفات وموقع عقاركم الحالي! يبحث العميل في منطقة ${district} - ${neighborhood} بميزانية تلائم عرضكم. يرجى التواصل معه فوراً لإتمام الصفقة وجني العمولة!`,
+        createdAt: new Date().toISOString().split('T')[0],
+        ownerId: brokerId
+      };
+      addInquiry(notificationInquiry);
+    });
+
+    if (matchedProperties.length > 0) {
+      onShowToast(`🔔 تم تفعيل التنبيه بنجاح، ومطابقته آلياً مع ${matchedProperties.length} عقارات وإشعار مكاتبها المعنية بوجود عميل مهتم فورا!`, 'system');
+    } else {
+      onShowToast('🔔 تم قيد طلبك وتفعيل ملف المراقبة بنجاح! سنقوم بمطابقة العقارات القادمة فور نشرها وإرسالها لك.', 'system');
+    }
     
     // Reset Form
     setMaxPriceIQD('');
+    setClientName('');
     // Switch to list tab
     setActiveTab('list');
   };
@@ -310,19 +377,36 @@ export default function PropertyAlertModal({
               </div>
 
               {/* Critical Contact Data for alerting channel */}
-              <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                  <span>رقم الهاتف الخاص بك (لتلقي التنبيهات المباشرة):</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="مثال: 07801234567..."
-                  value={phoneOrWhatsapp}
-                  onChange={(e) => setPhoneOrWhatsapp(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-800 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-bold font-sans text-right focus:outline-none transition-all"
-                  required
-                />
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>اسمك الكامل (مقدم الطلب):</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: حيدر السماوي..."
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-800 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-bold text-slate-900 focus:outline-none transition-all"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-black text-emerald-950 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>رقم الهاتف أو الواتساب:</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="مثال: 07801234567..."
+                    value={phoneOrWhatsapp}
+                    onChange={(e) => setPhoneOrWhatsapp(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 focus:border-emerald-800 focus:bg-white rounded-xl px-3 py-2.5 text-xs font-bold font-sans text-right focus:outline-none transition-all"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Submit trigger button */}
@@ -406,7 +490,7 @@ export default function PropertyAlertModal({
                               <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100 flex items-center justify-between">
                                 <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  الفحص التلقائي مطلي:
+                                  حالة التطابق الفوري:
                                 </span>
                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                                   matches > 0 

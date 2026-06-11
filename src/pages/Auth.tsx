@@ -6,8 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Building2, Mail, Lock, User, Phone, CheckCircle, 
-  ArrowRight, AlertTriangle, Briefcase, ShieldCheck, Star 
+  Building2, Mail, Lock, CheckCircle, 
+  AlertTriangle, ShieldCheck 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
@@ -17,7 +17,6 @@ export default function Auth(): React.ReactElement {
   const location = useLocation();
   const { 
     signInWithEmail, 
-    signUpBroker, 
     authError, 
     isLoadingDoc, 
     currentUser, 
@@ -25,12 +24,8 @@ export default function Auth(): React.ReactElement {
     isAuthenticated 
   } = useAuth();
 
-  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [agencyName, setAgencyName] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [showWelcomeToast, setShowWelcomeToast] = useState(false);
   const [welcomeDetails, setWelcomeDetails] = useState<{ name: string; msg: string; isAdmin: boolean } | null>(null);
@@ -69,6 +64,19 @@ export default function Auth(): React.ReactElement {
           navigate(destination, { replace: true });
         }, 2000);
         return () => clearTimeout(timer);
+      } else if (role === 'community') {
+        setWelcomeDetails({
+          name: name,
+          msg: `مرحباً بك في لوحة تحكم مجمع ${agency || 'السكني'}. تم تأمين ملفات الهوية الاستثمارية وعرض البروشورات.`,
+          isAdmin: false
+        });
+        setShowWelcomeToast(true);
+
+        const timer = setTimeout(() => {
+          const destination = (location.state as any)?.from?.pathname || '/dashboard';
+          navigate(destination, { replace: true });
+        }, 2000);
+        return () => clearTimeout(timer);
       } else {
         // Seeker or guest fallback
         navigate('/', { replace: true });
@@ -90,23 +98,7 @@ export default function Auth(): React.ReactElement {
         throw new Error('حفاظاً على سرية عقود الملاك؛ يرجى كتابة رمز مرور يتجاوز 6 خانات.');
       }
 
-      if (isRegister) {
-        if (!fullName.trim() || fullName.trim().length < 4) {
-          throw new Error('الرجاء إدخال الاسم الثلاثي كاملاً لصاحب المكتب العقاري.');
-        }
-        if (!whatsapp.trim() || whatsapp.trim().length < 8) {
-          throw new Error('يرجى إدخال رقم هاتف اتصال وواتساب صحيح لتوجيه طلبات الشراء تلقائياً.');
-        }
-
-        await signUpBroker(email, password, {
-          name: fullName.trim(),
-          phone: whatsapp.trim(),
-          whatsapp: whatsapp.trim(),
-          agencyName: agencyName.trim() || fullName.trim()
-        });
-      } else {
-        await signInWithEmail(email, password);
-      }
+      await signInWithEmail(email, password);
     } catch (err: any) {
       setLocalError(err?.message || 'عذراً، تعذر إتمام العملية السحابية حالياً.');
     }
@@ -196,40 +188,7 @@ export default function Auth(): React.ReactElement {
           </div>
         </div>
 
-        {/* Floating Segment Control Tabs */}
-        <div className="grid grid-cols-2 bg-slate-50 border border-slate-150 p-1.5 rounded-xl mb-6 select-none">
-          <button
-            type="button"
-            disabled={isLoadingDoc}
-            onClick={() => {
-              setIsRegister(false);
-              setLocalError(null);
-            }}
-            className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-              !isRegister
-                ? 'bg-white text-emerald-800 shadow-xs border border-slate-100'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            تسجيل الدخول للمثبتين
-          </button>
-          
-          <button
-            type="button"
-            disabled={isLoadingDoc}
-            onClick={() => {
-              setIsRegister(true);
-              setLocalError(null);
-            }}
-            className={`py-2 text-xs font-black rounded-lg transition-all cursor-pointer ${
-              isRegister
-                ? 'bg-white text-emerald-800 shadow-xs border border-slate-100'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            تسجيل مكتب جديد
-          </button>
-        </div>
+        {/* Floating Segment Control Tabs removed since self-registration is closed */}
 
         {/* Arabic exception error box mapping */}
         {errorToDisplay && (
@@ -249,67 +208,6 @@ export default function Auth(): React.ReactElement {
         {/* Input Form Fields Grid */}
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {isRegister && (
-            <>
-              {/* Full certified name info */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">اسم صاحب الحساب الثلاثي:</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    disabled={isLoadingDoc}
-                    placeholder="أبو علي الحميد السماوي"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none focus:bg-white text-right disabled:opacity-50"
-                  />
-                  <div className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
-                    <User className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Office/Agency name description */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">الاسم التجاري للمكتب أو المجمع:</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    disabled={isLoadingDoc}
-                    placeholder="مكتب السماوي للعقارات والمقاولات"
-                    value={agencyName}
-                    onChange={(e) => setAgencyName(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-emerald-700 focus:outline-none focus:bg-white text-right disabled:opacity-50"
-                  />
-                  <div className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
-                    <Briefcase className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-
-              {/* WhatsApp or directly reachable telephone number */}
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">رقم الهاتف النشط للتواصل بالواتساب:</label>
-                <div className="relative">
-                  <input
-                    type="tel"
-                    required
-                    disabled={isLoadingDoc}
-                    placeholder="07802879555"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200 rounded-xl px-4 py-3 text-xs text-center font-mono focus:ring-1 focus:ring-emerald-700 focus:outline-none focus:bg-white disabled:opacity-50"
-                  />
-                  <div className="absolute inset-y-0 left-3.5 flex items-center text-slate-400">
-                    <Phone className="w-4 h-4" />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
           {/* Email address field */}
           <div className="space-y-1">
             <label className="block text-xs font-bold text-slate-700">البريد الإلكتروني المعتمد:</label>
@@ -333,9 +231,7 @@ export default function Auth(): React.ReactElement {
           <div className="space-y-1">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold text-slate-700">رمز المرور الخاص بالحساب:</label>
-              {!isRegister && (
-                <button type="button" className="text-[10px] text-emerald-800 hover:underline">فقدت الرمز؟</button>
-              )}
+              <button type="button" className="text-[10px] text-emerald-800 hover:underline">فقدت الرمز؟</button>
             </div>
             <div className="relative">
               <input
@@ -365,35 +261,11 @@ export default function Auth(): React.ReactElement {
                 <span>جاري تأمين وربط قنوات الجلسة...</span>
               </div>
             ) : (
-              <span>{isRegister ? 'تثبيت الحساب والبدء في إدراج العقارات' : 'دخول بحساب المكتب'}</span>
+              <span>دخول بحساب المكتب</span>
             )}
           </button>
 
         </form>
-
-        {/* Seeker / Guest Quick Navigation Options */}
-        <div className="border-t border-slate-100 mt-6 pt-5 text-center">
-          <p className="text-[11px] text-slate-400 font-sans">هل تبحث عن عقارات فقط ولست بحاجة للوحة الإدراج المتقدمة؟</p>
-          <button
-            onClick={() => navigate('/')}
-            disabled={isLoadingDoc}
-            className="mt-2.5 inline-flex items-center gap-1 text-xs font-extrabold text-slate-700 hover:text-emerald-800 font-sans hover:underline focus:outline-none cursor-pointer"
-          >
-            <span>التجاوز والدخول كزائر لتصفح المعروضات</span>
-            <ArrowRight className="w-4 h-4 shrink-0" />
-          </button>
-        </div>
-
-        {/* Sandbox test environment credentials disclaimer and quick help tips */}
-        {!isRegister && (
-          <div className="mt-4 bg-emerald-500/5 rounded-xl p-3 border border-emerald-800/5 text-[10px] text-slate-600 leading-relaxed font-sans text-right">
-            🔍 <span className="font-extrabold text-emerald-950">بيانات تجريبية للمراجعة السريعة:</span>
-            <ul className="list-disc leading-5 list-inside mt-1 font-medium select-all">
-              <li>حساب المدير العام: <code className="font-mono bg-emerald-100 px-1 rounded text-emerald-900">alihussein6758@gmail.com</code> / الرمز: <code className="font-mono bg-emerald-100 px-1 rounded text-emerald-900">A1a2a3a4</code></li>
-              <li>حساب مكتب نموذج: أي إيميل للتجربة الفورية.</li>
-            </ul>
-          </div>
-        )}
 
       </motion.div>
     </div>

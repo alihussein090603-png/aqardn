@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import brandShowcase from '../muthanna_brand.jpeg';
 import { 
   Home as HomeIcon, Building, Briefcase, MapPin, Search, SlidersHorizontal, 
-  Map, Star, AlertCircle, Loader2, Bell, Calculator
+  Map, Star, AlertCircle, Loader2, Bell, Calculator, Grid, List
 } from 'lucide-react';
 import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../services/firebase';
+import { db, handleFirestoreError, OperationType, isMockConfig } from '../services/firebase';
 import { useAppState } from '../context/AppStateContext';
 import PropertyCard from '../components/property/PropertyCard';
 import FilterModal from '../components/property/FilterModal';
@@ -51,10 +51,17 @@ export default function Home(): React.ReactElement {
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [activeCategory, setActiveCategory] = useState<PropertyCategory | 'all'>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   // 1. Setup real-time Firestore subscriber stream
   useEffect(() => {
     let isMounted = true;
+    
+    if (isMockConfig) {
+      setIsLoading(false);
+      return;
+    }
+
     const propertiesRef = collection(db, 'properties');
     
     // Default optimized query: status == 'active', ordered chronologically
@@ -253,68 +260,21 @@ export default function Home(): React.ReactElement {
       {/* HERO SECTION WITH LUXURY GRADIENT & ROYAL MOTIFS */}
       <section 
         id="hero-header" 
-        className="relative text-white pt-16 pb-20 sm:pb-24 px-4 overflow-hidden bg-cover bg-center min-h-[380px] flex items-center justify-center border-b border-emerald-950/20 animate-fade-in"
+        className="relative text-white pt-12 pb-14 px-4 overflow-hidden bg-cover bg-center min-h-[160px] flex items-center justify-center border-b border-emerald-950/20 animate-fade-in"
         style={{ backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.94), rgba(6, 78, 59, 0.82), rgba(15, 23, 42, 0.94)), url(${brandShowcase})` }}
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(52,211,153,0.08),transparent_45%)]" />
         <div className="absolute -top-16 -left-16 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl" />
         
-        <div className="max-w-4xl mx-auto text-center space-y-6 relative z-10">
+        <div className="max-w-4xl mx-auto text-center space-y-4 relative z-10">
 
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white leading-tight">
             عقارات المثنى — بوابتكم السكنية والاستثمارية
           </h1>
-          
-          <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto leading-relaxed">
-            تصفح أفضل المنازل السكنية، الهياكل والأراضي المروية، والشقق العصرية المعروضة للبيع أو الإيجار في السماوة والرميثة والخضر وكافة الأقضية مباشرة من الوسطاء المعتمدين.
-          </p>
 
-          {/* INTERACTIVE SEARCH BAR CONTAINER */}
-          <div 
-            id="search-box" 
-            className="search-container bg-white/95 rounded-2xl p-2.5 shadow-2xl shadow-emerald-950/20 text-slate-900 text-right max-w-3xl mx-auto border border-emerald-500/20 backdrop-blur-md flex items-center gap-2"
-          >
-            {/* زر الفلترة الجانبي */}
-            <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="filter-btn shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 hover:text-emerald-800 p-3 rounded-xl transition-all duration-200 border border-slate-100 flex items-center justify-center gap-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-800 cursor-pointer group"
-              title="تصفية وخيارات الفرز المتقدمة"
-            >
-              <SlidersHorizontal className="w-4 h-4 text-emerald-800 group-hover:rotate-180 transition-transform duration-300" />
-              <span className="hidden sm:inline text-[11px] font-bold">فلترة متقدمة</span>
-              {(filters.district !== 'كل الأقضية' || filters.type !== 'all' || filters.minPrice !== null || filters.maxPrice !== null || filters.rooms !== 'all') && (
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-              )}
-            </button>
-
-            {/* حقل إدخال النص */}
-            <div className="flex-1 relative flex items-center">
-              <input
-                type="text"
-                placeholder="ابحث عن عقار (منطقة، حي، أو معلم كحي الحكيم، شارع باتا)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input w-full bg-slate-50/50 border border-slate-100 rounded-xl pr-10 pl-4 py-3 text-xs text-right focus:outline-none focus:bg-white focus:ring-1 focus:ring-emerald-700 font-sans tracking-wide transition-all duration-200"
-              />
-              {/* أيقونة البحث الفرعية */}
-              <span className="search-icon w-5 h-5 text-slate-400 absolute right-3 pointer-events-none flex items-center justify-center text-sm">
-                🔍
-              </span>
-            </div>
-
-            {/* القضاء الفوري المحدد */}
-            <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className="shrink-0 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-800 hover:text-emerald-950 px-3 py-3 rounded-xl text-[11px] font-black border border-emerald-800/10 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              <MapPin className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">{filters.district}</span>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 font-medium">
+          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-300 font-medium">
             <span>إجمالي العقارات المعروضة: </span>
-            <span className="text-white font-bold bg-white/10 px-2.5 py-0.5 rounded-md">
+            <span className="text-white font-bold bg-[#ffffff1a] px-2.5 py-0.5 rounded-md font-sans">
               {isLoading ? (
                 <Loader2 className="w-3 h-3 animate-spin inline ml-1" />
               ) : (
@@ -403,60 +363,49 @@ export default function Home(): React.ReactElement {
 
       {/* CITIZEN UTILITIES BENTO GRID */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 animate-in fade-in slide-in-from-bottom duration-300" dir="rtl">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="flex items-center justify-center">
           
-          {/* Bento Block 1: Property Alerts */}
-          <div className="bg-gradient-to-l from-emerald-950 via-emerald-900 to-slate-900 p-5 rounded-3xl border border-emerald-500/20 shadow-xl relative overflow-hidden flex flex-col justify-between gap-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(245,158,11,0.08),transparent_40%)]" />
-            <div className="flex gap-4 relative z-10 text-right">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/10">
-                <Bell className="w-6 h-6 text-amber-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white text-xs font-black">محرك التنبيهات العقارية الذكي 🔔</span>
-                  <span className="bg-amber-500 text-slate-950 text-[8px] font-black px-2.5 py-0.5 rounded-full font-sans">مجاني بالكامل</span>
-                </div>
-                <p className="text-[10px] text-slate-350 mt-1.5 leading-relaxed font-semibold">
-                  ألا تجد طلبك السكني؟ حدد معاييرك وسيقوم نظامنا بإشعارك فور قيام أحد مكاتب السماوة بنشر عقار يطابق تفضيلاتك!
-                </p>
-              </div>
-            </div>
+          {/* Smart Property Alerts Interactive Card */}
+          <div 
+            onClick={() => setIsAlertModalOpen(true)}
+            className="w-full max-w-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-950 p-6 sm:p-8 rounded-3xl border border-amber-500/30 hover:border-amber-500/70 shadow-2xl relative overflow-hidden transition-all duration-400 hover:scale-[1.02] cursor-pointer group select-none flex flex-col md:flex-row items-center gap-6"
+          >
+            {/* Ambient Background Spotlights */}
+            <div className="absolute -top-16 -right-16 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
             
-            <button
-              onClick={() => setIsAlertModalOpen(true)}
-              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 hover:scale-[1.01] transition-all py-2.5 rounded-xl text-[11px] font-black shadow-lg shadow-amber-500/10 flex items-center justify-center gap-2 cursor-pointer border-0 outline-none select-none"
-            >
-              <Bell className="w-4 h-4 text-slate-950 shrink-0" />
-              <span>تفعيل التنبيه للمنطقة والمواصفات العقارية المطلوبة</span>
-            </button>
-          </div>
+            {/* Modern Pulse Ring Animated Icon Area */}
+            <div className="relative shrink-0 flex items-center justify-center w-18 h-18 sm:w-20 sm:h-20 bg-amber-500/10 border border-amber-500/20 rounded-2xl group-hover:bg-amber-500/15 group-hover:border-amber-500/40 transition-colors duration-300 shadow-lg">
+              {/* Double Glowing Radar Rings */}
+              <div className="absolute inset-0 bg-amber-500/10 rounded-2xl blur-xs group-hover:scale-110 transition-transform duration-300" />
+              <div className="absolute w-full h-full rounded-2xl border-2 border-amber-500/30 animate-ping opacity-60" style={{ animationDuration: '3s' }} />
+              <div className="absolute w-2/3 h-2/3 rounded-full bg-emerald-500/10 animate-pulse" />
+              
+              <Bell className="w-8 h-8 sm:w-9 sm:h-9 text-amber-400 group-hover:rotate-[15deg] group-hover:scale-110 transition-all duration-400 relative z-10" />
+            </div>
 
-          {/* Bento Block 2: Deed Registration & Tax Fee Calculator */}
-          <div className="bg-gradient-to-l from-emerald-990 via-slate-900 to-slate-950 p-5 rounded-3xl border border-emerald-500/15 shadow-xl relative overflow-hidden flex flex-col justify-between gap-4">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.08),transparent_40%)]" />
-            <div className="flex gap-4 relative z-10 text-right">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/25 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/10">
-                <Calculator className="w-6 h-6 text-emerald-400" />
+            {/* Arabic Copy Descriptions */}
+            <div className="flex-1 text-center md:text-right space-y-2 relative z-10">
+              <div className="flex flex-col sm:flex-row items-center gap-2 justify-center md:justify-start">
+                <span className="text-white text-sm sm:text-base font-black tracking-tight flex items-center gap-1.5">
+                  محرك التنبيهات العقارية الذكي 🔔
+                </span>
+                <span className="bg-amber-500 text-slate-950 text-[9px] font-black px-2.5 py-0.5 rounded-full font-sans uppercase">
+                  تحديث فوري ٢٠٢٦
+                </span>
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-white text-xs font-black">حاسبة رسوم التسجيل والضريبة العقارية ⚖</span>
-                  <span className="bg-emerald-500 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full font-sans">تحديث ٢٠٢٦</span>
-                </div>
-                <p className="text-[10px] text-slate-350 mt-1.5 leading-relaxed font-semibold">
-                  احسب إجمالي الضرائب والرسوم القانونية المعتمدة بمديريات المثنى (العشر المالي للضريبة العامة، رسم الطابو، ومصادقة البلدية).
-                </p>
+              
+              <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed font-semibold">
+                ألا تجد طلبك السكني أو الاستثماري؟ حدد معاييرك (مثال: قضاء السماوة، نطاق السعر، أو المساحة) وسيرسل لك نظامنا إشعارًا فوريًا وتلقائيًا فور قيام أحد المكاتب الرسمية بنشر إعلان يطابق رغباتك!
+              </p>
+              
+              {/* Click invitation bar */}
+              <div className="pt-2 flex items-center justify-center md:justify-start gap-1.5 text-amber-400 font-extrabold text-[11px] tracking-wide group-hover:text-amber-300 transition-colors">
+                <span>⚡ اضغط هنا لتسجيل تفضيلاتك وتفعيل التنبيه المخصص</span>
+                <span className="group-hover:translate-x-1.5 transition-transform duration-300">←</span>
               </div>
             </div>
-            
-            <button
-              onClick={() => setIsCalculatorOpen(true)}
-              className="w-full bg-emerald-700 hover:bg-emerald-800 text-white hover:scale-[1.01] transition-all py-2.5 rounded-xl text-[11px] font-black shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2 cursor-pointer border-0 outline-none select-none"
-            >
-              <Calculator className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>أطلق حاسبة رسوم تسجيل طابو الأراضي والبيوت 🧮</span>
-            </button>
+
           </div>
 
         </div>
@@ -479,14 +428,58 @@ export default function Home(): React.ReactElement {
             </p>
           </div>
 
-          {(filters.district !== 'كل الأقضية' || filters.type !== 'all' || filters.minPrice !== null || filters.maxPrice !== null || filters.rooms !== 'all' || searchQuery !== '') && (
+          <div className="flex items-center gap-3">
+            {/* Quick Filter action trigger */}
             <button
-              onClick={resetAllFilters}
-              className="self-start text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 px-4 py-2 rounded-xl transition-all cursor-pointer shadow-xs"
+              onClick={() => setIsFilterModalOpen(true)}
+              className="bg-emerald-50 hover:bg-[#e6f4ea] text-emerald-800 px-4 py-2.5 rounded-xl text-xs font-black border border-emerald-500/10 flex items-center gap-1.5 transition-all duration-200 cursor-pointer shadow-xs border-none"
+              title="تصفية وفلترة العقارات"
             >
-              ✕ تصفير جميع خيارات الفرز
+              <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-800" />
+              <span>تصفية متقدمة</span>
+              {(filters.district !== 'كل الأقضية' || filters.type !== 'all' || filters.minPrice !== null || filters.maxPrice !== null || filters.rooms !== 'all') && (
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+              )}
             </button>
-          )}
+
+            {/* View Mode Switcher */}
+            <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer select-none border-0 outline-none ${
+                  viewMode === 'grid'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="العرض الشبكي"
+              >
+                <Grid className="w-3.5 h-3.5" />
+                <span>شبكي</span>
+              </button>
+              
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer select-none border-0 outline-none ${
+                  viewMode === 'list'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="عرض القائمة"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>قائمة</span>
+              </button>
+            </div>
+
+            {(filters.district !== 'كل الأقضية' || filters.type !== 'all' || filters.minPrice !== null || filters.maxPrice !== null || filters.rooms !== 'all' || searchQuery !== '') && (
+              <button
+                onClick={resetAllFilters}
+                className="self-start text-xs font-bold text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-100 px-4 py-2 rounded-xl transition-all cursor-pointer shadow-xs border-0 outline-none"
+              >
+                ✕ تصفير
+              </button>
+            )}
+          </div>
         </div>
 
         {/* LOADING INDICATORS */}
@@ -523,11 +516,18 @@ export default function Home(): React.ReactElement {
           </div>
         ) : (
           /* PROPERTY LISTINGS GRID */
-          <div id="properties-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div 
+            id="properties-grid" 
+            className={viewMode === 'grid' 
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+              : "flex flex-col gap-5 max-w-5xl mx-auto"
+            }
+          >
             {filteredProperties.map((property) => (
               <PropertyCard
                 key={property.id}
                 property={property}
+                viewMode={viewMode}
                 isWishlisted={wishlist.includes(property.id)}
                 onToggleWishlist={(id, e) => {
                   e.stopPropagation();

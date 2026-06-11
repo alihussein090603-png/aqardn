@@ -15,6 +15,31 @@ export interface Broker {
   activeListingsCount: number;
 }
 
+export interface Community {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  phone: string;
+  location: string;
+  createdAt: string;
+  activeListingsCount?: number;
+}
+
+export interface InvestmentCommunity {
+  id: string;
+  name: string;
+  logo: string;
+  coverImage: string;
+  district: string;
+  neighborhood: string;
+  progress: number; // percentage (e.g., 75 for 75%)
+  phone: string;
+  whatsapp: string;
+  description: string;
+  blocks: string[]; // list of blocks e.g. ["البلوك A", "البلوك B", "البلوك C"]
+}
+
 export interface AdminUserRecord {
   uid: string; // Globally unique immutable auth ID
   name: string; // "مدير النظام العام"
@@ -49,6 +74,37 @@ export interface Property {
   createdAt: string;
   views: number;
   status?: 'active' | 'pending' | 'sold' | 'rejected';
+  propertyStatus?: string;
+  deedType?: string;
+  constructionStatus?: string;
+  latitude?: number;
+  longitude?: number;
+  locationCoordinates?: { latitude: number; longitude: number };
+  
+  // Community fields
+  belongsToCommunity?: boolean;
+  communityId?: string;
+  blockIdentifier?: string;
+  unitNumber?: string | number;
+  availabilityStatus?: 'available' | 'reserved' | 'sold';
+}
+
+export interface LeadRequest {
+  id: string;
+  clientName: string;
+  clientPhone: string;
+  clientWhatsApp?: string;
+  requiredCategory: PropertyCategory | 'all';
+  transactionType: 'sale' | 'rent' | 'all';
+  preferredDistrict: string;
+  preferredNeighborhood: string; // 'كل المناطق' or specific
+  budgetMin: number | null;
+  budgetMax: number | null;
+  minArea: number | null;
+  notes?: string;
+  createdAt: string;
+  status: 'active' | 'matched' | 'closed';
+  brokerId: string;
 }
 
 export interface FilterState {
@@ -112,3 +168,14 @@ export const NEIGHBORHOODS: Record<string, string[]> = {
     'حي الفرات'
   ]
 };
+
+export interface PropertyInquiry {
+  id: string;
+  propertyId: string;
+  propertyTitle: string;
+  clientName: string;
+  clientPhone: string;
+  messageText: string;
+  createdAt: string;
+  ownerId: string; // The broker/owner ID of the office who owns this property listing
+}

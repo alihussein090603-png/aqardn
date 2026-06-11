@@ -11,12 +11,15 @@ import Home from '../pages/Home';
 import PropertyDetails from '../pages/PropertyDetails';
 import Auth from '../pages/Auth';
 import Wishlist from '../pages/Wishlist';
+import Communities from '../pages/Communities';
+import CommunityDetail from '../pages/CommunityDetail';
 
 // Lazy Loaded Protected Broker/Admin Pages for Performance Optimization
 const DashboardHome = lazy(() => import('../pages/dashboard/DashboardHome'));
 const MyProperties = lazy(() => import('../pages/dashboard/MyProperties'));
 const AddProperty = lazy(() => import('../pages/dashboard/AddProperty'));
 const DashboardAnalytics = lazy(() => import('../pages/dashboard/DashboardAnalytics'));
+const LeadsMatching = lazy(() => import('../pages/dashboard/LeadsMatching'));
 const Profile = lazy(() => import('../pages/dashboard/Profile'));
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
 
@@ -41,6 +44,8 @@ export default function AppRoutes() {
         <Route path="/property/:id" element={<PropertyDetails />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/wishlist" element={<Wishlist />} />
+        <Route path="/communities" element={<Communities />} />
+        <Route path="/community/:id" element={<CommunityDetail />} />
 
         {/* Protected Broker Workspace Routes */}
         <Route
@@ -80,6 +85,14 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/leads"
+          element={
+            <ProtectedRoute>
+              <LeadsMatching />
             </ProtectedRoute>
           }
         />

@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: ('broker' | 'admin')[];
+  allowedRoles?: ('broker' | 'admin' | 'community')[];
 }
 
-export default function ProtectedRoute({ children, allowedRoles = ['broker', 'admin'] }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, allowedRoles = ['broker', 'admin', 'community'] }: ProtectedRouteProps) {
   const { currentUser, role, isAuthenticated, isAuthenticating, isLoadingDoc } = useAuth();
   const location = useLocation();
 

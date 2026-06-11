@@ -8,7 +8,7 @@ import {
   AuthError
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, OperationType, handleFirestoreError } from '../services/firebase';
+import { auth, db, OperationType, handleFirestoreError, isMockConfig } from '../services/firebase';
 import { Broker } from '../types';
 
 // =========================================================
@@ -21,7 +21,7 @@ export interface UserType {
   phone: string;
   whatsapp: string;
   agencyName: string;
-  role: 'seeker' | 'broker' | 'admin';
+  role: 'seeker' | 'broker' | 'admin' | 'community';
   isVerified: boolean;
   createdAt: any;
 }
@@ -29,7 +29,7 @@ export interface UserType {
 interface AuthContextType {
   currentUser: Broker | null;          // Map to Broker layout-centric model
   currentUserRecord: UserType | null;  // Raw multi-field Firestore User document state
-  role: 'seeker' | 'broker' | 'admin' | null;
+  role: 'seeker' | 'broker' | 'admin' | 'community' | null;
   isAuthenticated: boolean;
   isAuthenticating: boolean;           // Firebase boot checking status
   isLoadingDoc: boolean;               // Background collection fetching status
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return savedRecord ? JSON.parse(savedRecord) : null;
   });
 
-  const [role, setRole] = useState<'seeker' | 'broker' | 'admin' | null>(() => {
+  const [role, setRole] = useState<'seeker' | 'broker' | 'admin' | 'community' | null>(() => {
     return currentUserRecord ? currentUserRecord.role : (currentUser ? 'broker' : null);
   });
 
@@ -285,7 +285,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const cleanEmailStr = email.trim().toLowerCase();
-      if (cleanEmailStr === 'alihussein6758@gmail.com' && pass === 'A1a2a3a4') {
+      
+      // 1. MASTER OVERRIDE: Check administrative emails immediately
+      if ((cleanEmailStr === 'alihussein6758@gmail.com' || cleanEmailStr === 'alihussain6758@gmail.com') && pass === 'A1a2a3a4') {
         const adminBroker: Broker = {
           id: 'admin-999',
           name: 'علي الحسين (المدير العام)',
@@ -300,7 +302,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const adminUser: UserType = {
           uid: 'admin-999',
           name: 'علي الحسين (المدير العام)',
-          email: 'alihussein6758@gmail.com',
+          email: cleanEmailStr,
           phone: '+9647801234567',
           whatsapp: '9647801234567',
           agencyName: 'إدارة عقارات المثنى العليا',
@@ -313,6 +315,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setRole('admin');
         localStorage.setItem('aqarat_user', JSON.stringify(adminBroker));
         localStorage.setItem('aqarat_user_record', JSON.stringify(adminUser));
+        setIsLoadingDoc(false);
+        return;
+      }
+
+      // If we are in mock mode, bypass real network calls to avoid long timeouts/slowness
+      if (isMockConfig) {
+        const mockName = cleanEmailStr.split('@')[0];
+        const isComp = cleanEmailStr.startsWith('comp') || cleanEmailStr.includes('comp');
+        const roleAssigned: 'admin' | 'community' | 'broker' = cleanEmailStr.includes('admin') ? 'admin' : (isComp ? 'community' : 'broker');
+        
+        const displayBrokerName = isComp 
+          ? `مجمع ${mockName.replace('comp2026_', '')} السكني` 
+          : (mockName === 'demo' ? 'المكتب العقاري التجريبي' : `مكتب ${mockName}`);
+        
+        const mockBroker: Broker = {
+          id: isComp ? 'comp-' + mockName : 'b-' + mockName,
+          name: displayBrokerName,
+          avatar: isComp 
+            ? 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=150&q=80'
+            : 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
+          phone: '+9647700112233',
+          whatsapp: '9647700112233',
+          agencyName: displayBrokerName,
+          rating: 4.9,
+          isVerified: true,
+          activeListingsCount: isComp ? 0 : 5
+        };
+        const mockUser: UserType = {
+          uid: isComp ? 'comp-' + mockName : 'b-' + mockName,
+          name: displayBrokerName,
+          email: cleanEmailStr,
+          phone: '+9647700112233',
+          whatsapp: '9647700112233',
+          agencyName: displayBrokerName,
+          role: roleAssigned,
+          isVerified: true,
+          createdAt: new Date().toISOString()
+        };
+        setCurrentUser(mockBroker);
+        setCurrentUserRecord(mockUser);
+        setRole(roleAssigned);
+        localStorage.setItem('aqarat_user', JSON.stringify(mockBroker));
+        localStorage.setItem('aqarat_user_record', JSON.stringify(mockUser));
         setIsLoadingDoc(false);
         return;
       }
@@ -404,6 +449,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (!basicMetadata.phone.trim() || basicMetadata.phone.length > 30) {
         throw new Error('يرجى تزويدنا برقم هاتف عراقي صالح للتواصل المباشر.');
+      }
+
+      // If mock config, bypass Firebase network creation with immediate local signup
+      if (isMockConfig) {
+        const mockUid = 'mock-' + Date.now();
+        const brokerProfile: Broker = {
+          id: mockUid,
+          name: basicMetadata.name.trim(),
+          avatar: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
+          phone: basicMetadata.phone.trim(),
+          whatsapp: basicMetadata.whatsapp.trim(),
+          agencyName: basicMetadata.agencyName.trim() || basicMetadata.name.trim(),
+          rating: 4.8,
+          isVerified: false,
+          activeListingsCount: 0
+        };
+        const brokerRecord: UserType = {
+          uid: mockUid,
+          name: basicMetadata.name.trim(),
+          email: cleanEmail,
+          phone: basicMetadata.phone.trim(),
+          whatsapp: basicMetadata.whatsapp.trim(),
+          agencyName: basicMetadata.agencyName.trim() || basicMetadata.name.trim(),
+          role: 'broker',
+          isVerified: false,
+          createdAt: new Date().toISOString()
+        };
+        setCurrentUser(brokerProfile);
+        setCurrentUserRecord(brokerRecord);
+        setRole('broker');
+        localStorage.setItem('aqarat_user', JSON.stringify(brokerProfile));
+        localStorage.setItem('aqarat_user_record', JSON.stringify(brokerRecord));
+        setIsLoadingDoc(false);
+        return;
       }
 
       // Establish Firebase user identity reference

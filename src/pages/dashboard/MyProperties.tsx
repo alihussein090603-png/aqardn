@@ -13,7 +13,7 @@ import {
   collection, query, where, onSnapshot, doc, 
   deleteDoc, updateDoc, Timestamp 
 } from 'firebase/firestore';
-import { db, OperationType, handleFirestoreError } from '../../services/firebase';
+import { db, OperationType, handleFirestoreError, isMockConfig } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useAppState } from '../../context/AppStateContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
@@ -41,6 +41,13 @@ export default function MyProperties(): React.ReactElement {
       return;
     }
 
+    if (isMockConfig) {
+      setIsLoading(false);
+      return;
+    }
+
+    let unsubscribe = () => {};
+
     setIsLoading(true);
     const propertiesRef = collection(db, 'properties');
     
@@ -49,7 +56,7 @@ export default function MyProperties(): React.ReactElement {
       where('brokerId', '==', currentUser.id || '')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    unsubscribe = onSnapshot(q, (snapshot) => {
       const list: Property[] = snapshot.docs.map((docSnap) => {
         const dData = docSnap.data();
         

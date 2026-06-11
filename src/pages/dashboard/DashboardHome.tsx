@@ -7,22 +7,37 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Eye, Star, Info, TrendingUp, Building, ArrowUpRight, 
-  ShieldCheck, ChevronLeft, Sparkles, MapPin, Edit3, Trash2, CheckCircle2 
+  ShieldCheck, ChevronLeft, Sparkles, MapPin, Edit3, Trash2, CheckCircle2, Plus 
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../../context/AuthContext';
 import { useAppState } from '../../context/AppStateContext';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 import { Property } from '../../types';
+import CommunityDashboard from '../../components/dashboard/CommunityDashboard';
 
 export default function DashboardHome(): React.ReactElement {
-  const { currentUser } = useAuth();
+  const { currentUser, currentUserRecord } = useAuth();
   const { properties, markAsSold, showToast } = useAppState();
   const navigate = useNavigate();
 
+  const isOfficeUser = (currentUserRecord?.email || (currentUser as any)?.email || '').toLowerCase().startsWith('office');
+  const isCommunityUser = currentUserRecord?.role === 'community' || (currentUserRecord?.email || (currentUser as any)?.email || '').toLowerCase().startsWith('comp');
+
+  if (isCommunityUser) {
+    return (
+      <DashboardLayout>
+        <CommunityDashboard />
+      </DashboardLayout>
+    );
+  }
+
   const myProperties = properties.filter((p) => p.broker?.id === currentUser?.id);
   const totalViews = myProperties.reduce((acc, curr) => acc + curr.views, 0);
-  const premiumCount = myProperties.filter((p) => p.isPremium).length;
+  
+  // Active/Sold listings calculation
+  const activeCount = myProperties.filter((p) => p.status === 'active' || !p.status).length;
+  const soldCount = myProperties.filter((p) => p.status === 'sold' || p.title.startsWith('[تم البيع]')).length;
 
   // Render a continuous upward sparkline trend using simple Tailwind divs
   const renderTrendMockup = () => (
@@ -49,6 +64,240 @@ export default function DashboardHome(): React.ReactElement {
     return 'قابل للتفاوض';
   };
 
+  // OFFICE EXCLUSIVE DASHBOARD VIEW
+  if (isOfficeUser) {
+    const latestProperties = [...myProperties]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
+
+    return (
+      <DashboardLayout>
+        <div className="space-y-8 animate-in fade-in-50 duration-200 text-right font-sans" dir="rtl">
+          
+          {/* Welcome Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-[11px] text-emerald-800 bg-emerald-500/10 px-3 py-1 rounded-full font-bold">بوابة أعمال المكتب</span>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-930 mt-1">لوحة التتبع الإحصائية للمكتب</h2>
+              <p className="text-xs text-slate-500">مراقبة التفاعل اليومي وحالة المعروضات في محافظة المثنى فورياً</p>
+            </div>
+            
+            <button
+              onClick={() => navigate('/dashboard/add-property')}
+              className="bg-emerald-800 hover:bg-emerald-950 text-white font-extrabold px-5 py-3 rounded-xl text-xs flex items-center gap-2 shadow-md transition-all self-start cursor-pointer active:scale-95"
+            >
+              <Plus className="w-4.5 h-4.5" />
+              <span>إدراج عقار جديد للجمهور</span>
+            </button>
+          </div>
+
+          {/* 1. Smart Digital Analytics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            
+            {/* KPI 1: Active properties */}
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-2xl border border-slate-150 p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden text-right"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-xs font-black block">عقارات المكتب النشطة</span>
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-500/10">
+                  <Building className="w-5 h-5 shrink-0" />
+                </div>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold text-emerald-800 tracking-tight mt-4 font-mono">
+                {activeCount}
+              </p>
+              <p className="text-[11px] text-slate-500 font-extrabold mt-2 leading-relaxed">
+                الإعلانات المنشورة حالياً وتستقبل اتصالات ومعاينات من الزوار بالكامل.
+              </p>
+            </motion.div>
+
+            {/* KPI 2: Sold properties */}
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="bg-white rounded-2xl border border-slate-150 p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden text-right"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400 text-xs font-black block">العقارات المباعة / المؤجرة</span>
+                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-500/10">
+                  <CheckCircle2 className="w-5 h-5 shrink-0" />
+                </div>
+              </div>
+              <p className="text-2xl md:text-3xl font-bold text-amber-600 tracking-tight mt-4 font-mono">
+                {soldCount}
+              </p>
+              <p className="text-[11px] text-slate-500 font-extrabold mt-2 leading-relaxed">
+                الصفقات المكتملة وعقود التنازل التي جرى تعبئتها بنجاح عبر بوابة شركائنا.
+              </p>
+            </motion.div>
+
+            {/* KPI 3: Total Views */}
+            <motion.div 
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="bg-slate-900 text-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden text-right"
+            >
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-xs font-black block">إجمالي عدد المشاهدات لعقاراتكم</span>
+                <div className="p-2.5 rounded-xl bg-white/5 text-emerald-400 border border-white/10">
+                  <Eye className="w-5 h-5 shrink-0" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-4 mt-3">
+                <p className="text-2xl md:text-3xl font-bold text-emerald-300 tracking-tight font-mono">
+                  {totalViews > 0 ? totalViews.toLocaleString('en-US') : '0'}
+                </p>
+                {renderTrendMockup()}
+              </div>
+              <p className="text-[11px] text-slate-400 font-extrabold mt-2 leading-relaxed">
+                مزيج رصد الزيارات العامة ومعدل فتح كروت تفاصيل معروضات مكتبكم العقاري.
+              </p>
+            </motion.div>
+
+          </div>
+
+          {/* 2. Latest 5 Properties Ingested Table Card */}
+          <div className="bg-white rounded-3xl border border-slate-150 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-black text-slate-900">أحدث ٥ عقارات تم إضافتها للمكتب</h3>
+                <p className="text-[11px] text-slate-400 font-medium">جدول تفصيلي يتتبع الحالات الحالية والتنسيقات المعمارية</p>
+              </div>
+
+              <button
+                onClick={() => navigate('/dashboard/my-properties')}
+                className="text-xs font-extrabold text-emerald-800 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>إدارة كافة العقارات ({myProperties.length})</span>
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+
+            {latestProperties.length === 0 ? (
+              <div className="py-16 text-center space-y-4 max-w-sm mx-auto p-4">
+                <Building className="w-12 h-12 text-slate-200 mx-auto" strokeWidth={1} />
+                <h4 className="text-xs font-extrabold text-slate-700">لا توجد عقارات مدرجة لحساب مكتبكم</h4>
+                <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
+                  اضغط على زر "إضافة عقار جديد" في الأعلى للبدء بالبث وعرض الصفقات على الجمهور.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-550 border-b border-slate-150 font-black">
+                      <th className="p-4">العقار وتصنيفه</th>
+                      <th className="p-4">الموقع الإداري</th>
+                      <th className="p-4">طبيعة العقد والمالية</th>
+                      <th className="p-4">الحالة</th>
+                      <th className="p-4 text-center">الإجراء</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                    {latestProperties.map((p) => {
+                      const isSold = p.status === 'sold' || p.title.startsWith('[تم البيع]');
+                      const isPending = p.status === 'pending';
+                      
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <img 
+                                src={p.images[0]} 
+                                alt={p.title} 
+                                className="w-10 h-10 object-cover rounded-lg border border-slate-200 shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="min-w-0 space-y-0.5">
+                                <span className="text-[10px] text-emerald-800 bg-emerald-55/60 px-2 py-0.5 rounded font-black max-w-max inline-block mb-1">
+                                  {p.category === 'house' ? '🏡 منزل' : p.category === 'apartment' ? '🏢 شقة' : p.category === 'commercial' ? '💼 تجاري' : '🗺️ أرض'}
+                                </span>
+                                <p className="font-extrabold text-slate-900 truncate max-w-[180px] sm:max-w-[240px]">{p.title}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="space-y-0.5">
+                              <p className="font-black text-slate-900">{p.district || 'السماوة'}</p>
+                              <p className="text-[10px] text-slate-400 font-bold">{p.neighborhood || 'الحي السكني'}</p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <div className="space-y-0.5 font-mono">
+                              <p className="font-bold text-emerald-800">{formatCurrency(p)}</p>
+                              <p className="text-[10px] text-slate-450 font-bold font-sans">{p.area} م² مسطح</p>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {isSold ? (
+                              <span className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-black px-2.5 py-1 rounded-md">
+                                تم البيع / مكتمل
+                              </span>
+                            ) : isPending ? (
+                              <span className="bg-amber-100 text-amber-805 border border-amber-200 text-[10px] font-black px-2.5 py-1 rounded-md">
+                                غير نشط (معلق)
+                              </span>
+                            ) : (
+                              <span className="bg-emerald-50 text-emerald-808 border border-emerald-200 text-[10px] font-black px-2.5 py-1 rounded-md">
+                                نشط ومعروض ✓
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              onClick={() => navigate(`/dashboard/add-property?edit=${p.id}`)}
+                              className="bg-slate-50 hover:bg-emerald-50 hover:text-emerald-950 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 transition-all font-bold cursor-pointer"
+                            >
+                              تعديل الإعلان
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Tips Info box for Office user */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-3xl p-6 relative overflow-hidden shadow-lg border border-white/5">
+            <div className="absolute top-0 left-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1.5">
+                <h4 className="text-sm font-black text-amber-400 flex items-center gap-1.5">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-400 shrink-0" />
+                  بروتوكول حوكمة وإيداع صور المكاتب المعتمدة
+                </h4>
+                <p className="text-xs text-slate-350 leading-relaxed max-w-2xl font-semibold">
+                  باسم مكاتب عقارات المثنى، نلتزم بتغذية الإعلانات بمحيط جغرافي دقيق على الخرائط، وصورة بناء معمارية فوتوغرافية واحدة على الأقل. يسهم الإكمال الدقيق للبيانات برفع معدل مشاهدات وتفضيلات زوار المحافظة بنسبة تتجاوز ٧٠٪ وتيسير تصفيات عقود التميز الفورية.
+                </p>
+              </div>
+              
+              <button
+                onClick={() => navigate('/dashboard/my-properties')}
+                className="bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold px-4 py-2.5 rounded-lg text-xs self-start md:self-center shrink-0 border-0 cursor-pointer shadow-md transition-all active:scale-95"
+              >
+                المطالعة وتصفية كروتي
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // STANDARD VISUALS
   return (
     <DashboardLayout>
       <div className="space-y-8 animate-in fade-in-50 duration-200 text-right font-sans" dir="rtl">
@@ -65,7 +314,7 @@ export default function DashboardHome(): React.ReactElement {
           </div>
         </div>
 
-        {/* 1. Premium Mobile-Optimized Analytics Cards with Auto-Scaling text-2xl md:text-3xl font-bold constraint */}
+        {/* 1. Premium Mobile-Optimized Analytics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           
           {/* Card 1: Active Ads */}
@@ -75,14 +324,13 @@ export default function DashboardHome(): React.ReactElement {
             transition={{ duration: 0.3 }}
             className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group text-right"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors pointer-events-none" />
             <div className="flex items-center justify-between">
               <span className="text-slate-400 text-xs font-black block">إعلاناتي النشطة</span>
               <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800">
                 <Building className="w-4 h-4 shrink-0" />
               </div>
             </div>
-            {/* Auto-scaling font wrapper to prevent desktop/mobile clipping */}
             <p className="text-2xl md:text-3xl font-bold text-emerald-700 tracking-tight mt-4 font-mono">
               {myProperties.length}
             </p>
@@ -98,7 +346,7 @@ export default function DashboardHome(): React.ReactElement {
             transition={{ duration: 0.3, delay: 0.1 }}
             className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group text-right"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
             <div className="flex items-center justify-between">
               <span className="text-slate-400 text-xs font-black block">إجمالي عدد المشاهدات</span>
               <div className="flex items-center gap-1 bg-emerald-50 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-lg border border-emerald-500/10">
@@ -108,9 +356,8 @@ export default function DashboardHome(): React.ReactElement {
             </div>
 
             <div className="flex items-center justify-between gap-4 mt-3">
-              {/* Auto-scaling font wrapper constraint */}
               <p className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight font-mono">
-                {totalViews > 0 ? totalViews.toLocaleString('en-US') : '15,581'}
+                {totalViews > 0 ? totalViews.toLocaleString('en-US') : '0'}
               </p>
               {renderTrendMockup()}
             </div>
@@ -127,14 +374,13 @@ export default function DashboardHome(): React.ReactElement {
             transition={{ duration: 0.3, delay: 0.2 }}
             className="bg-amber-500/5 border-2 border-amber-500/20 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group text-right animate-in zoom-in-95"
           >
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl" />
+            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
             <div className="flex items-center justify-between">
               <span className="text-amber-805 text-xs font-black block">عروض مميزة مدفوعة</span>
               <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
             </div>
-            {/* Auto-scaling font wrapper constraint */}
             <p className="text-2xl md:text-3xl font-bold text-amber-600 tracking-tight mt-4 font-mono">
-              {premiumCount}
+              {myProperties.filter((p) => p.isPremium).length}
             </p>
             <p className="text-[11px] text-amber-900/80 font-extrabold mt-2 leading-relaxed">
               تتصدر واجهة البحث الفوقية والفرص ذات الأولوية المطلقة للاستقطاب.
@@ -156,7 +402,7 @@ export default function DashboardHome(): React.ReactElement {
           </div>
         </div>
 
-        {/* 2. Overhauled Quick Actions & Active Properties List (ANTI-TABLE CARD FLEX STACK) */}
+        {/* 2. Quick Actions & Active Properties List */}
         <div className="bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 shadow-xl">
           <div className="flex items-center justify-between mb-5 border-b border-slate-100 pb-4">
             <div className="space-y-0.5">
@@ -185,8 +431,6 @@ export default function DashboardHome(): React.ReactElement {
               </button>
             </div>
           ) : (
-            
-            /* Responsive Fluid Card Flex Stack Layout Container (Anti-Table overhaul) */
             <div className="flex flex-col gap-4 w-full">
               {myProperties.slice(0, 3).map((p) => {
                 const isSold = p.status === 'sold' || p.title.startsWith('[تم البيع]');
@@ -203,10 +447,7 @@ export default function DashboardHome(): React.ReactElement {
                       </span>
                     )}
 
-                    {/* Standard Content Flex wrapper where <img> sits on the right inside RTL context */}
                     <div className="flex items-center gap-4">
-                      
-                      {/* Left Block in RTL: Metadata stack */}
                       <div className="flex-1 min-w-0 space-y-1.5 text-right">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
@@ -227,7 +468,6 @@ export default function DashboardHome(): React.ReactElement {
                         </div>
                       </div>
 
-                      {/* Right Block in RTL: Photo sit framed on the right */}
                       <div className="w-20 h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-xs">
                         <img 
                           src={p.images[0]} 
@@ -236,10 +476,8 @@ export default function DashboardHome(): React.ReactElement {
                           referrerPolicy="no-referrer"
                         />
                       </div>
-
                     </div>
 
-                    {/* Fluid underlying statistics block on any viewport */}
                     <div className="bg-white p-3 rounded-xl border border-slate-150 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-650">
                       <div className="space-x-1 space-x-reverse font-sans">
                         <span>المساحة:</span>
@@ -258,7 +496,6 @@ export default function DashboardHome(): React.ReactElement {
                       </div>
                     </div>
 
-                    {/* Touch Action Strip containing big physical button layouts at the base */}
                     <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                       <button
                         onClick={() => navigate(`/dashboard/add-property?edit=${p.id}`)}

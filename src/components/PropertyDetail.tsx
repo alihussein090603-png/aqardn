@@ -12,6 +12,7 @@ import { Property } from '../types';
 import AiPredictorWidget from './property/AiPredictorWidget';
 import PropertySharePoster from './property/PropertySharePoster';
 import RealEstateCalculator from './tools/RealEstateCalculator';
+import { useAppState } from '../context/AppStateContext';
 
 interface PropertyDetailProps {
   property: Property;
@@ -36,6 +37,45 @@ export default function PropertyDetail({
   const [isPosterOpen, setIsPosterOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('calc') === 'true') {
+      setIsCalculatorOpen(true);
+    }
+  }, []);
+
+  const { addInquiry, showToast } = useAppState();
+  const [inqName, setInqName] = useState('');
+  const [inqPhone, setInqPhone] = useState('');
+  const [inqMsg, setInqMsg] = useState('السلام عليكم، يرجي التواصل معي للمعاينة ومعرفة المزيد من التفاصيل بخصوص هذا الملف العقاري.');
+  const [isSendingInquiry, setIsSendingInquiry] = useState(false);
+
+  const handleInquirySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inqName.trim() || !inqPhone.trim()) {
+      showToast('⚠️ يرجى تعبئة الاسم ورقم الهاتف لإرسال الاستفسار.', 'system');
+      return;
+    }
+    
+    setIsSendingInquiry(true);
+    setTimeout(() => {
+      addInquiry({
+        id: `inq_${Date.now()}`,
+        propertyId: property.id,
+        propertyTitle: property.title,
+        clientName: inqName.trim(),
+        clientPhone: inqPhone.trim(),
+        messageText: inqMsg.trim(),
+        createdAt: new Date().toISOString().split('T')[0],
+        ownerId: (property as any).ownerId || 'system_broker'
+      });
+      setInqName('');
+      setInqPhone('');
+      setInqMsg('السلام عليكم، يرجي التواصل معي للمعاينة ومعرفة المزيد من التفاصيل بخصوص هذا الملف العقاري.');
+      setIsSendingInquiry(false);
+    }, 1200);
+  };
+
   const formatIQD = (val: number) => {
     if (val >= 1) {
       return `${val.toLocaleString('ar-IQ')} مليون دينار عراقي`;
@@ -57,15 +97,8 @@ export default function PropertyDetail({
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6" dir="rtl">
       
-      {/* Back button and share features */}
-      <div className="flex items-center justify-between mb-6">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-slate-700 hover:text-emerald-800 bg-white border border-slate-200/80 hover:border-emerald-800/10 shadow-sm px-4 py-2 rounded-xl transition-all font-medium text-sm"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>العودة للرئيسية</span>
-        </button>
+      {/* Back button and share features (Back button removed as requested by user) */}
+      <div className="flex items-center justify-end mb-6">
 
         <div className="flex items-center gap-2">
           {/* WhatsApp poster generator button */}
@@ -156,67 +189,7 @@ export default function PropertyDetail({
             )}
           </div>
 
-          {/* Core Info Details Header */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-            
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`px-2.5 py-1 text-xs font-bold rounded-md text-white ${
-                property.transactionType === 'sale' ? 'bg-amber-600' : 'bg-emerald-700'
-              }`}>
-                {property.transactionType === 'sale' ? 'للبيع' : 'للإيجار'}
-              </span>
 
-              <span className="bg-slate-100 text-slate-800 px-2.5 py-1 text-xs font-bold rounded-md">
-                {property.category === 'house' && '🏡 بيت سكني'}
-                {property.category === 'apartment' && '🏢 شقة فاخرة'}
-                {property.category === 'commercial' && '💼 محل أو مكتب تجاري'}
-                {property.category === 'land' && '🗺️ أرض ملك صرف'}
-              </span>
-
-              {property.isPremium && (
-                <span className="bg-amber-100 text-amber-800 border border-amber-300/30 px-2.5 py-1 text-xs font-bold rounded-md">
-                  ⭐ إعلان متميز ونادر
-                </span>
-              )}
-            </div>
-
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 leading-snug">
-              {property.title}
-            </h1>
-
-            {/* Geographic Tag with Details */}
-            <div className="flex items-center gap-2 text-slate-600">
-              <MapPin className="w-5 h-5 text-emerald-800 shrink-0" />
-              <p className="text-sm font-semibold">
-                المحافظة: المثنى - <span className="text-emerald-900">{property.district}</span> - {property.neighborhood} {property.addressDetails ? `، ${property.addressDetails}` : ''}
-              </p>
-            </div>
-
-            {/* Price Detail Block */}
-            <div className="bg-emerald-500/5 p-4 rounded-xl border border-emerald-800/10 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-slate-500">السعر المطلوب بالدينار العراقي:</p>
-                  <p className="text-xl font-black text-emerald-800 mt-1 animate-pulse">
-                    {formatIQD(property.priceIQD)}
-                  </p>
-                </div>
-                <div className="border-r border-dotted border-slate-200 pr-0 sm:pr-4">
-                  <p className="text-xs text-slate-500">السعر المقابل بالدولار الأمريكي:</p>
-                  <p className="text-lg font-mono font-bold text-slate-700 mt-1">
-                    {formatUSD(property.priceUSD)}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCalculatorOpen(true)}
-                className="w-full bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <Calculator className="w-4 h-4 text-amber-400" />
-                <span>احسب رسوم طابو التسجيل والضريبة العقارية لهذا العقار 🧮</span>
-              </button>
-            </div>
-          </div>
 
           {/* Specifications & Metrics Grid */}
           <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
@@ -287,15 +260,7 @@ export default function PropertyDetail({
             </p>
           </div>
 
-          {/* AI Predictive Evaluation and Wait-Time Tool */}
-          <AiPredictorWidget
-            district={property.district}
-            neighborhood={property.neighborhood}
-            category={property.category}
-            area={property.area}
-            priceIQD={property.priceIQD}
-            priceUSD={property.priceUSD}
-          />
+
 
           {/* Features Tag Grid */}
           <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
@@ -397,6 +362,68 @@ export default function PropertyDetail({
               <p className="text-xs text-slate-600 leading-relaxed font-semibold">
                 عقارات المثنى منصة تواصل وتنسيق عقاري. نرجو عدم إرسال مبالغ الدفع المالي المقدمة لبيوت وأراضي إلا بعد لقاء المكتب العقاري ومعاينة الطابو والمستندات القانونية بحضور ممثلي مكاتب السماوة الرسمية.
               </p>
+            </div>
+
+            {/* In-app Message Inquiry Form Component */}
+            <div className="bg-white border border-slate-205 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="border-b border-slate-100 pb-2.5">
+                <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                  <MessageSquare className="w-4.5 h-4.5 text-emerald-800" />
+                  <span>تواصل فوري (إرسال رسالة مباشرة للمكتب)</span>
+                </h5>
+                <p className="text-[10px] text-slate-400 mt-0.5">سيظهر استفسارك في لوحة التحكم الواردة للمكتب فوراً.</p>
+              </div>
+
+              <form onSubmit={handleInquirySubmit} className="space-y-3 text-right">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">الاسم الكريم بالكامل:</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={50}
+                    placeholder="مثال: يوسف الكناني"
+                    value={inqName}
+                    onChange={(e) => setInqName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-emerald-800 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">رقم هاتفك للتواصل الفوري:</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="مثال: 07801234567"
+                    value={inqPhone}
+                    onChange={(e) => setInqPhone(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-center font-mono font-bold focus:ring-1 focus:ring-emerald-800 focus:outline-none"
+                    dir="ltr"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block">صيغة وملاحظات الاستفسار:</label>
+                  <textarea
+                    rows={3}
+                    required
+                    value={inqMsg}
+                    onChange={(e) => setInqMsg(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-emerald-800 focus:outline-none leading-relaxed text-right"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSendingInquiry}
+                  className="w-full bg-emerald-800 hover:bg-emerald-950 text-white font-bold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+                >
+                  {isSendingInquiry ? (
+                    <span>جاري إرسال المراسلات... ⌛</span>
+                  ) : (
+                    <span>إرسال الاستفسار الفوري السحري 📨</span>
+                  )}
+                </button>
+              </form>
             </div>
 
           </div>

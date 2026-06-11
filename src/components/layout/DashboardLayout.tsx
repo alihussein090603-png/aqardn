@@ -1,47 +1,63 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   Building, PlusCircle, LayoutDashboard, UserCheck, LogOut, 
-  ShieldCheck, MapPin, BarChart3, Home, User
+  ShieldCheck, MapPin, BarChart3, Home, User, Users, Menu, X, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAppState } from '../../context/AppStateContext';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { currentUser, logout, role } = useAuth();
+  const { currentUser, logout, role, currentUserRecord } = useAuth();
   const { properties } = useAppState();
   const navigate = useNavigate();
   const location = useLocation();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   if (!currentUser) return null;
+
+  // Determine if this is an "Office User" based on email matching the "office" prefix
+  const isOfficeUser = (currentUserRecord?.email || (currentUser as any)?.email || '').toLowerCase().startsWith('office');
+
+  const isComp = currentUserRecord?.role === 'community' ||
+                 (currentUserRecord?.email || '').toLowerCase().includes('comp') || 
+                 currentUser?.id.toLowerCase().includes('comp') || 
+                 (currentUser?.agencyName || '').includes('مجمع');
 
   // Compute stats
   const myProperties = properties.filter((p) => p.broker?.id === currentUser.id);
 
+  // Normal navigation items
   const navItems = [
     {
-      label: 'إحصائيات المكتب العامة',
+      label: isComp ? 'إحصائيات المجمع العامة' : 'إحصائيات المكتب العامة',
       path: '/dashboard',
       icon: LayoutDashboard,
     },
     {
-      label: 'التحليلات ومؤشرات السوق',
+      label: isComp ? 'التحليلات العقارية للمجمع' : 'التحليلات ومؤشرات السوق',
       path: '/dashboard/analytics',
       icon: BarChart3,
     },
     {
-      label: `عقاراتي النشطة (${myProperties.length})`,
+      label: isComp ? `وحدات المجمع النشطة (${myProperties.length})` : `عقاراتي النشطة (${myProperties.length})`,
       path: '/dashboard/my-properties',
       icon: Building,
     },
     {
-      label: 'إدراج عقار جديد',
+      label: isComp ? 'إدراج وحدة سكنية جديدة' : 'إدراج عقار جديد',
       path: '/dashboard/add-property',
       icon: PlusCircle,
+    },
+    {
+      label: 'الطلبات والمطابقة الآلية',
+      path: '/dashboard/leads',
+      icon: Users,
     },
     {
       label: 'بيانات حسابي الشخصي',
@@ -58,7 +74,53 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     });
   }
 
-  // Active status for the app-like bottom navigation bar
+  // Office User specific menu options as requested in prompt:
+  // 1. القائمة المخفية العلوية (Top Drawer Menu):
+  // 📊 الرئيسية (لوحة التحكم).
+  // 🏢 عقاراتي (إدارة الإعلانات).
+  // ➕ إضافة عقار جديد.
+  // 💬 الرسائل والطلبات.
+  const officeNavItems = [
+    {
+      label: 'الرئيسية (لوحة التحكم)',
+      path: '/dashboard',
+      icon: LayoutDashboard,
+    },
+    {
+      label: 'عقاراتي (إدارة الإعلانات)',
+      path: '/dashboard/my-properties',
+      icon: Building,
+    },
+    {
+      label: 'إضافة عقار جديد',
+      path: '/dashboard/add-property',
+      icon: PlusCircle,
+    },
+    {
+      label: 'الرسائل والطلبات',
+      path: '/dashboard/leads',
+      icon: MessageSquare,
+    }
+  ];
+
+  const handleLinkClick = (path: string) => {
+    setIsDrawerOpen(false);
+    navigate(path);
+  };
+
+  // IF OFFICE USER: RENDER STREAMLINED CONTENT CANVAS (GLOBAL HEADER & MOBILE BOTTOM NAV HANDLE CONTROLS)
+  if (isOfficeUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-right font-sans pb-28 pt-4" dir="rtl">
+        {/* Dynamic Children Center Canvas Screen */}
+        <main className="max-w-5xl mx-auto px-4 sm:px-6">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
+  // STANDARD LAYOUT FOR NON-OFFICE BROKERS / ADMINS
   const isTabActive = (path: string) => {
     return location.pathname === path;
   };
@@ -73,16 +135,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping shrink-0" />
-              <span className="text-xs text-emerald-300 font-extrabold tracking-wide">بوابة الشركاء المعتمدين — محافظة المثنى</span>
+              <span className="text-xs text-emerald-300 font-extrabold tracking-wide">
+                {isComp ? 'بوابة المجمعات السكنية المعتمدة — محافظة المثنى' : 'بوابة الشركاء المعتمدين — محافظة المثنى'}
+              </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white">{currentUser.agencyName || 'مكتب السماوي للعقارات والمقاولات'}</h1>
-            <p className="text-xs sm:text-sm text-slate-300">أهلاً بك، <span className="text-white font-extrabold">{currentUser.name || 'مدير الحساب'}</span>. يمكنك إدارة عروض البيع والإيجار فورياً.</p>
+            <p className="text-xs sm:text-sm text-slate-300">
+              أهلاً بك، <span className="text-white font-extrabold">{currentUser.name || 'مدير الحساب'}</span>. 
+              {isComp ? ' يمكنك التحكم بالوحدات العقارية وعروض البيوع التابعة للمجمع السكني فورياً.' : ' يمكنك إدارة عروض البيع والإيجار فورياً لصالح مكتبكم العقاري بمرونة تامة.'}
+            </p>
           </div>
           
-          <div className="flex items-center gap-2自 justify-end mt-2 md:mt-0">
+          <div className="flex items-center gap-2 justify-end mt-2 md:mt-0">
             <span className="bg-white/10 text-emerald-300 text-xs font-black px-4 py-2 rounded-xl border border-white/5 flex items-center gap-1.5 shrink-0 shadow-lg backdrop-blur-xs">
               <ShieldCheck className="w-4 h-4 text-amber-500 fill-amber-500/10" />
-              <span>مكتب معتمد ومحقق</span>
+              <span>{isComp ? 'مجمع سكني معتمد ومحقق' : 'مكتب معتمد ومحقق'}</span>
             </span>
 
             <button 
@@ -115,7 +182,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   to={item.path}
                   className={`w-full text-right px-4 py-3 rounded-xl text-xs sm:text-sm font-black flex items-center gap-3 transition-all ${
                     isActive
-                      ? 'bg-emerald-600/10 text-emerald-800 border-r-3 border-emerald-600 font-extrabold scale-[1.01]'
+                      ? 'bg-emerald-600/10 text-emerald-800 border-r-4 border-emerald-600 font-extrabold scale-[1.01]'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-emerald-800'
                   }`}
                 >
@@ -132,50 +199,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
 
-      </div>
-
-      {/* Mobile-First App-Like bottom persistent utility nav bar (Visible ONLY on mobile <= 767px) */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-100 px-6 py-2 flex justify-between items-center z-50 shadow-2xl md:hidden">
-        {/* Buttons */}
-        <button
-          onClick={() => navigate('/')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 transition-all cursor-pointer active:scale-90 ${
-            location.pathname === '/' ? 'text-emerald-705 text-emerald-700 font-extrabold' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Home className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-extrabold">الرئيسية</span>
-        </button>
-
-        <button
-          onClick={() => navigate('/dashboard/my-properties')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 transition-all cursor-pointer active:scale-90 ${
-            isTabActive('/dashboard/my-properties') ? 'text-emerald-705 text-emerald-700 font-extrabold' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <Building className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-extrabold">عقاراتي</span>
-        </button>
-
-        <button
-          onClick={() => navigate('/dashboard/add-property')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 transition-all cursor-pointer active:scale-90 ${
-            isTabActive('/dashboard/add-property') ? 'text-emerald-750 text-emerald-700 font-extrabold' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <PlusCircle className="w-5 h-5 shrink-0 text-amber-600" />
-          <span className="text-[10px] font-extrabold">إدراج عقار</span>
-        </button>
-
-        <button
-          onClick={() => navigate('/dashboard/profile')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 transition-all cursor-pointer active:scale-90 ${
-            isTabActive('/dashboard/profile') ? 'text-emerald-705 text-emerald-700 font-extrabold' : 'text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          <User className="w-5 h-5 shrink-0" />
-          <span className="text-[10px] font-extrabold">حسابي</span>
-        </button>
       </div>
 
     </div>

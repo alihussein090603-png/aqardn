@@ -14,7 +14,7 @@ import firebaseConfig from '../firebase-applet-config.json';
 export const app = initializeApp(firebaseConfig);
 
 // Detect if this is a simulation context with mock keys
-const isMockConfig = firebaseConfig.apiKey && firebaseConfig.apiKey.includes('mock');
+export const isMockConfig = !!(firebaseConfig.apiKey && firebaseConfig.apiKey.includes('mock'));
 
 // Configure Firestore with elegant multi-tab persistent local cache to guarantee high durability and Zero Offline Cost
 export const db = initializeFirestore(app, {
