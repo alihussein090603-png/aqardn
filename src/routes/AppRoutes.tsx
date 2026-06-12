@@ -21,6 +21,7 @@ const AddProperty = lazy(() => import('../pages/dashboard/AddProperty'));
 const DashboardAnalytics = lazy(() => import('../pages/dashboard/DashboardAnalytics'));
 const LeadsMatching = lazy(() => import('../pages/dashboard/LeadsMatching'));
 const Profile = lazy(() => import('../pages/dashboard/Profile'));
+const CommunityCardDesigner = lazy(() => import('../pages/dashboard/CommunityCardDesigner'));
 const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
 
 // Security Guards
@@ -85,6 +86,14 @@ export default function AppRoutes() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/community-card"
+          element={
+            <ProtectedRoute>
+              <CommunityCardDesigner />
             </ProtectedRoute>
           }
         />

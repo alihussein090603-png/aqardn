@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building, Eye, Plus, Trash2, CheckCircle, AlertCircle, 
   Sparkles, MapPin, Phone, MessageSquare, Edit2, 
@@ -26,6 +27,7 @@ const BROCHURE_PRESETS = [
 export default function CommunityDashboard() {
   const { currentUser, currentUserRecord } = useAuth();
   const { properties, addProperty, deleteProperty, markAsSold, showToast } = useAppState();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<'listings' | 'brochure' | 'analytics'>('listings');
   const [selectedBlockFilter, setSelectedBlockFilter] = useState<string>('all');
@@ -246,11 +248,11 @@ export default function CommunityDashboard() {
         
         <div className="flex gap-2 self-start sm:self-center">
           <button
-            onClick={() => setIsEditingProfile(true)}
+            onClick={() => navigate('/dashboard/community-card')}
             className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-all active:scale-95"
           >
             <Edit2 className="w-4 h-4 text-emerald-700" />
-            <span>تعديل بروفايل المجمع</span>
+            <span>تعديل بروفايل وبطاقة المجمع</span>
           </button>
 
           <button

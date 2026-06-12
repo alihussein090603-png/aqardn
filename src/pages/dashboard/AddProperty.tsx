@@ -14,6 +14,7 @@ import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage, OperationType, handleFirestoreError, isMockConfig } from '../../services/firebase';
 import { useAuth } from '../../context/AuthContext';
 import { useAppState } from '../../context/AppStateContext';
+import { getDynamicCommunities } from '../../data/communitiesMock';
 import { Property, PropertyCategory } from '../../types';
 import DashboardLayout from '../../components/layout/DashboardLayout';
 
@@ -68,15 +69,74 @@ interface UploadQueueItem {
 }
 
 export default function AddProperty(): React.ReactElement {
-  const { currentUser } = useAuth();
+  const { currentUser, role } = useAuth();
   const { properties, addProperty, deleteProperty, showToast } = useAppState();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
 
+  const extractMapUrl = (input: string): string => {
+    if (!input) return '';
+    const clean = input.trim();
+    if (clean.includes('<iframe')) {
+      const match = clean.match(/src="([^"]+)"/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    if (clean.startsWith('http')) {
+      return clean;
+    }
+    return '';
+  };
+
+  const extractCoordinatesFromMapInput = (input: string) => {
+    if (!input) return null;
+    const clean = input.trim();
+    
+    // Pattern 1: look for @lat,lng
+    const atMatch = clean.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) {
+      return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+    }
+
+    // Pattern 2: look for q=lat,lng or ll=lat,lng
+    const qMatch = clean.match(/[?&](q|ll|query)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (qMatch) {
+      return { lat: parseFloat(qMatch[2]), lng: parseFloat(qMatch[3]) };
+    }
+
+    // Pattern 3: Look inside iframe embed src
+    if (clean.includes('<iframe')) {
+      const srcMatch = clean.match(/src="([^"]+)"/);
+      if (srcMatch && srcMatch[1]) {
+        const decodedSrc = decodeURIComponent(srcMatch[1]);
+        const pbMatch = decodedSrc.match(/!2d(-?\d+\.\d+)!3d(-?\d+\.\d+)/);
+        if (pbMatch) {
+          return { lat: parseFloat(pbMatch[2]), lng: parseFloat(pbMatch[1]) };
+        }
+      }
+    }
+    return null;
+  };
+
+  const handleMapInputPaste = (val: string) => {
+    setMapEmbedCode(val);
+    const coords = extractCoordinatesFromMapInput(val);
+    if (coords) {
+      setLatitude(coords.lat);
+      setLongitude(coords.lng);
+      showToast('🌟 تم رصد إحداثيات GPS تلقائياً من الرابط الملصق!', 'system');
+    }
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Community Developer options
+  const [selectedBlock, setSelectedBlock] = useState('البلوك A');
+  const [unitNumberInput, setUnitNumberInput] = useState('');
 
   // Form inputs state
   const [title, setTitle] = useState('');
@@ -106,6 +166,7 @@ export default function AddProperty(): React.ReactElement {
   const [constructionStatus, setConstructionStatus] = useState<'جاهز للسكن' | 'قيد الإنشاء'>('جاهز للسكن');
   const [latitude, setLatitude] = useState<number>(31.3167);
   const [longitude, setLongitude] = useState<number>(45.2833);
+  const [mapEmbedCode, setMapEmbedCode] = useState<string>('');
 
   // Handle Edit Pre-population
   useEffect(() => {
@@ -130,6 +191,14 @@ export default function AddProperty(): React.ReactElement {
           setImages(p.images);
         }
         
+        // Auto-fill community block and unit settings
+        if (p.blockIdentifier) {
+          setSelectedBlock(p.blockIdentifier);
+        }
+        if (p.unitNumber) {
+          setUnitNumberInput(p.unitNumber.toString());
+        }
+        
         // Load custom coordinates, deed & construction flags if present
         if (p.propertyStatus || p.deedType) {
           setDeedType((p.propertyStatus || p.deedType) as any);
@@ -143,6 +212,9 @@ export default function AddProperty(): React.ReactElement {
         } else if (p.latitude && p.longitude) {
           setLatitude(p.latitude);
           setLongitude(p.longitude);
+        }
+        if ((p as any).mapEmbedCode) {
+          setMapEmbedCode((p as any).mapEmbedCode);
         }
       }
     }
@@ -398,6 +470,12 @@ export default function AddProperty(): React.ReactElement {
 
     const finalImagesList = images.length > 0 ? images : [presetAppImages[0].url];
 
+    const isCommunityRole = role === 'community';
+    const finalBelongs = isCommunityRole;
+    const finalCommunityId = isCommunityRole ? currentUser.id : undefined;
+    const finalBlock = isCommunityRole ? selectedBlock : undefined;
+    const finalUnit = isCommunityRole ? unitNumberInput.trim() : undefined;
+
     const newProperty: Property & any = {
       id: newPropertyId,
       ownerId: currentUser.id || 'system_broker',
@@ -419,7 +497,10 @@ export default function AddProperty(): React.ReactElement {
       imagesUrl: finalImagesList,
       mainImage: finalImagesList[0] || '',
       isPremium: Math.random() > 0.65, 
-      broker: brokerDetails,
+      broker: {
+        ...brokerDetails,
+        agencyName: isCommunityRole ? currentUser.agencyName || currentUser.name : brokerDetails.agencyName
+      },
       features,
       createdAt: new Date().toISOString(),
       views: 7,
@@ -428,7 +509,15 @@ export default function AddProperty(): React.ReactElement {
       constructionStatus,
       latitude,
       longitude,
-      locationCoordinates: { latitude, longitude }
+      locationCoordinates: { latitude, longitude },
+      mapEmbedCode: mapEmbedCode.trim(),
+      
+      // Community fields
+      belongsToCommunity: finalBelongs,
+      communityId: finalCommunityId,
+      blockIdentifier: finalBlock,
+      unitNumber: finalUnit,
+      availabilityStatus: 'available'
     };
 
     setIsSubmitting(true);
@@ -479,7 +568,7 @@ export default function AddProperty(): React.ReactElement {
         transactionType: newProperty.transactionType,
         // Broker verification credentials
         brokerVerificationCredentials: currentUser.isVerified || false,
-        broker: brokerDetails,
+        broker: newProperty.broker,
         
         // Smart office metadata fields
         propertyStatus: deedType,
@@ -487,7 +576,15 @@ export default function AddProperty(): React.ReactElement {
         constructionStatus,
         latitude,
         longitude,
-        locationCoordinates: geoPointObj
+        locationCoordinates: geoPointObj,
+        mapEmbedCode: mapEmbedCode.trim(),
+
+        // Community Fields
+        belongsToCommunity: finalBelongs,
+        communityId: finalCommunityId,
+        blockIdentifier: finalBlock,
+        unitNumber: finalUnit,
+        availabilityStatus: 'available'
       };
 
       if (!isMockConfig) {
@@ -637,7 +734,19 @@ export default function AddProperty(): React.ReactElement {
             {images.length > 0 && (
               <div className="space-y-3 bg-slate-50 rounded-2xl p-4 border border-slate-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-800">معالج ومُنظم الصور الذكي ({images.length} صور مضافة)</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-800">معالج ومُنظم الصور الذكي ({images.length} صور مضافة)</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImages([]);
+                        showToast('🧹 تم مسح وإلغاء كافة الصور المحددة بنجاح.', 'system');
+                      }}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-red-200/40 transition-all active:scale-95 cursor-pointer"
+                    >
+                      مسح الكل
+                    </button>
+                  </div>
                   <span className="text-[9px] text-amber-805 bg-amber-500/10 px-2.5 py-1 rounded font-bold">⭐ النجمة تختار صورة الغلاف رئيسياً</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
@@ -923,6 +1032,46 @@ export default function AddProperty(): React.ReactElement {
 
           </div>
 
+          {/* SECURE BLOCK DEVELOPER CONTROLS (Only visible to community developers) */}
+          {role === 'community' && (
+            <div className="p-5 bg-emerald-800/10 rounded-2xl border-2 border-emerald-800/20 space-y-4 text-right" id="developer-controls-section">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🏢</span>
+                <span className="text-xs font-black text-emerald-950">بوابة المطور العقاري للمجمعات الاستثمارية:</span>
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold leading-relaxed">
+                باصفتكم حساب مطور جهة استثمارية معتمد، سيتم إيداع ونشر هذا العقار للعامة تحت بطاقة مجمعكم الاستثماري تلقائياً. يرجى تحديد البلوك ورمز الوحدة:
+              </p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 block">قطاع ومربع البلازا / البلوك الاستثماري:</label>
+                  <select
+                    value={selectedBlock}
+                    onChange={(e) => setSelectedBlock(e.target.value)}
+                    className="w-full bg-white border border-emerald-800/30 rounded-xl px-4 py-2.5 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-emerald-800"
+                  >
+                    {(getDynamicCommunities().find(c => c.id === currentUser?.id)?.blocks || ['البلوك A', 'البلوك B', 'البلوك C']).map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-700 block">رقم أو رمز وحدة العقار السكني:</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="مثال: فيلا رقم 24 / شقة 309"
+                    value={unitNumberInput}
+                    onChange={(e) => setUnitNumberInput(e.target.value)}
+                    className="w-full bg-white border border-emerald-800/30 rounded-xl px-4 py-2.5 text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-emerald-800"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Section 4: GEOGRAPHIC DROP DOWNS (AL-MUTHANNA EXPLICIT DROPDOWNS) */}
           <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-150 space-y-4">
             <span className="text-xs font-black text-slate-800 flex items-center gap-1 block">
@@ -964,148 +1113,167 @@ export default function AddProperty(): React.ReactElement {
           </div>
 
           {/* Interactive High-fidelity Google Maps Canvas */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-emerald-800 font-bold" />
-                <span>خارطة التموضع الجغرافي التفاعلية (Google Maps Widget)</span>
+                <MapPin className="w-5 h-5 text-emerald-800 font-bold shrink-0" />
+                <span>التموضع الميداني وخرائط جوجل (Google Maps Link)</span>
               </span>
-              <span className="text-[10px] text-emerald-805 bg-emerald-500/10 px-2.5 py-1 rounded-md font-bold">تحديد بنقرة واحدة</span>
+              <span className="text-[10px] text-emerald-800 bg-emerald-500/10 px-2.5 py-1 rounded-md font-bold self-start sm:self-auto">إدخال ذكي متكامل</span>
             </div>
 
-            <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
-              انقر على أي حي بالخارطة أدناه أو اسحب الدبوس لتحديث الإحداثيات فورياً وتخزينها سحابياً.
-            </p>
-
-            {/* Simulated Visual Interactive Satellite Map Panel */}
-            <div className="relative aspect-video rounded-xl bg-slate-950 overflow-hidden border border-slate-300 shadow-inner flex flex-col justify-between p-3 select-none group cursor-crosshair">
-              {/* Map Background Grid Simulation */}
-              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
-                backgroundImage: 'radial-gradient(#10b981 1.5px, transparent 1.5px), radial-gradient(#10b981 1.5px, #0b1329 1.5px)',
-                backgroundSize: '24px 24px',
-                backgroundPosition: '0 0, 12px 12px'
-              }} />
-
-              {/* Map Vector Streets Simulation */}
-              <div className="absolute inset-x-0 top-1/3 h-1 bg-emerald-500/15 rotate-12 pointer-events-none" />
-              <div className="absolute inset-x-0 top-2/3 h-1.5 bg-emerald-500/15 -rotate-6 pointer-events-none" />
-              <div className="absolute top-0 bottom-0 left-1/3 w-1 bg-emerald-500/15 rotate-45 pointer-events-none" />
-              <div className="absolute top-0 bottom-0 left-2/3 w-1.5 bg-emerald-500/15 -rotate-12 pointer-events-none" />
-
-              {/* Regional text nodes in map */}
-              <div className="absolute top-4 right-8 text-emerald-400/35 text-[9px] font-black pointer-events-none">قضاء {district}</div>
-              <div className="absolute bottom-6 left-12 text-emerald-400/25 text-[8px] font-bold pointer-events-none">نهر الفرات</div>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/5 text-[40px] font-black tracking-widest pointer-events-none uppercase">AL-MUTHANNA</div>
-
-              {/* Click/Touch to drop Pin overlay handler */}
-              <div 
-                className="absolute inset-0" 
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = e.clientX - rect.left;
-                  const y = e.clientY - rect.top;
-                  const width = rect.width;
-                  const height = rect.height;
-                  // Map clicks to relative coordinate variation around area defaults
-                  const baseLat = 31.3167;
-                  const baseLng = 45.2833;
-                  const deltaLat = ((height/2 - y) / height) * 0.45;
-                  const deltaLng = ((x - width/2) / width) * 0.45;
-                  setLatitude(parseFloat((baseLat + deltaLat).toFixed(6)));
-                  setLongitude(parseFloat((baseLng + deltaLng).toFixed(6)));
-                  showToast('📍 تم رصد إحداثيات الدبوس الجديد وتحديث المدخلات.', 'system');
-                }}
-              />
-
-              {/* Draggable Active Pin in center/modified coords */}
-              <div 
-                style={{
-                  position: 'absolute',
-                  top: '45%',
-                  left: '50%',
-                  transform: 'translate(-50%, -100%)'
-                }}
-                className="z-10 bg-rose-600 border-2 border-white text-white p-2.5 rounded-full shadow-lg pointer-events-none shadow-rose-650/45 animate-bounce"
-              >
-                <MapPin className="w-5 h-5 fill-white text-rose-600" />
+            {/* Paste box segment */}
+            <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-150">
+              <div className="flex gap-2 text-right">
+                <span className="text-sm">📌</span>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-slate-900">طريقة وضع رابط أو كود خرائط جوجل:</p>
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                    افتح تطبيق خرائط جوجل، واضغط على <span className="text-slate-800 font-bold">مشاركة الشير</span> ثم <span className="text-emerald-900 font-bold">نسخ الرابط</span>، والصقه في الحقل أدناه. سيقوم النظام باستخراج إحداثيات GPS تلقائياً وتثبيت الخريطة فورياً لزوار موقعكم.
+                  </p>
+                </div>
               </div>
 
-              {/* Map Overlay HUD (Buttons/Controls) */}
-              <div className="relative z-10 flex justify-between items-start w-full pointer-events-none h-full flex-col">
-                <div className="flex justify-between w-full">
-                  {/* GPS Coordinates lock indication bubble */}
-                  <div className="bg-slate-900/80 backdrop-blur-xs text-[9px] text-emerald-300 font-bold px-2 rounded-lg py-1 flex items-center gap-1 border border-emerald-550/10">
-                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                    <span>تتبع GPS دائم</span>
-                  </div>
-                  {/* Sector Label Badge */}
-                  <div className="bg-emerald-950 text-white font-extrabold px-3 py-1 rounded-lg text-[9px] border border-emerald-800">
-                    بث {neighborhood || 'السماوة'}
-                  </div>
-                </div>
+              <div className="space-y-1.5 mt-2">
+                <label className="text-[10px] font-bold text-slate-700 block">رابط أو كود مشاركة الخريطة من Google Maps:</label>
+                <textarea 
+                  rows={2}
+                  value={mapEmbedCode}
+                  onChange={(e) => handleMapInputPaste(e.target.value)}
+                  placeholder="الصق الرابط (مثل: https://maps.app.goo.gl/...) أو كود الـ <iframe> هنا..."
+                  className="w-full bg-white border border-slate-200 rounded-xl p-3 text-xs text-left font-mono focus:outline-none focus:ring-1 focus:ring-emerald-800 resize-none font-bold placeholder:text-slate-350"
+                />
+              </div>
+            </div>
 
-                <div className="flex justify-between w-full items-end mt-auto pointer-events-auto">
-                  {/* Coordinates readout HUD overlay */}
-                  <div className="bg-slate-900/95 text-white p-2.5 rounded-xl text-[10px] font-mono border border-white/10 flex flex-col gap-0.5 shadow-md">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400 font-bold w-6">LAT:</span>
-                      <span className="text-white font-black">{latitude}</span>
+            {/* Simulated and Live Interactive Satellite Map Toggle Display */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-slate-400 block">معاينة الخارطة الحية المستهدفة:</span>
+              
+              <div className="relative aspect-video rounded-2xl bg-slate-950 overflow-hidden border border-slate-200 shadow-inner flex flex-col justify-between p-3 select-none">
+                {/* Check if we can show a live direct Google Map iframe or fallback */}
+                {mapEmbedCode && extractMapUrl(mapEmbedCode) ? (
+                  <iframe 
+                    src={extractMapUrl(mapEmbedCode)}
+                    title="موقع العقار المعتمد"
+                    className="w-full h-full border-0 absolute inset-0"
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                ) : (latitude && longitude) ? (
+                  <iframe 
+                    src={`https://maps.google.com/maps?q=${latitude},${longitude}&z=16&output=embed`}
+                    title="موقع العقار التفاعلي"
+                    className="w-full h-full border-0 absolute inset-0"
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
+                ) : (
+                  <>
+                    {/* Map Grid Simulation Fallback */}
+                    <div className="absolute inset-0 opacity-20 pointer-events-none" style={{
+                      backgroundImage: 'radial-gradient(#10b981 1.5px, transparent 1.5px), radial-gradient(#10b981 1.5px, #0b1329 1.5px)',
+                      backgroundSize: '24px 24px',
+                      backgroundPosition: '0 0, 12px 12px'
+                    }} />
+
+                    {/* Regions */}
+                    <div className="absolute top-4 right-8 text-emerald-400/35 text-[9px] font-black pointer-events-none">قضاء {district}</div>
+                    <div className="absolute bottom-6 left-12 text-emerald-400/25 text-[8px] font-bold pointer-events-none">نهر الفرات</div>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/5 text-[32px] sm:text-[40px] font-black tracking-widest pointer-events-none uppercase">AL-MUTHANNA</div>
+
+                    {/* Draggable/Bounce Center Pin */}
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        top: '45%',
+                        left: '50%',
+                        transform: 'translate(-50%, -100%)'
+                      }}
+                      className="z-10 bg-rose-650 border-2 border-white text-white p-2 sm:p-2.5 rounded-full shadow-lg pointer-events-none animate-bounce"
+                    >
+                      <MapPin className="w-5 h-5 fill-white text-rose-600" />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-400 font-bold w-6">LNG:</span>
-                      <span className="text-white font-black">{longitude}</span>
+                  </>
+                )}
+
+                {/* HUD Overlay Label */}
+                <div className="relative z-10 flex justify-between items-start w-full pointer-events-none h-full flex-col">
+                  <div className="flex justify-between w-full">
+                    <div className="bg-slate-900/90 backdrop-blur-xs text-[9px] text-emerald-400 font-bold px-2 rounded-lg py-1 flex items-center gap-1 border border-emerald-500/10">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span>GPS نشط وموجه</span>
+                    </div>
+                    <div className="bg-emerald-900 text-white font-extrabold px-3 py-1 rounded-lg text-[9px] border border-emerald-700">
+                      بث {neighborhood || 'التوجيه الميداني'}
                     </div>
                   </div>
 
-                  {/* Action presets buttons inside map */}
-                  <div className="flex flex-col gap-1">
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setLatitude(31.3167);
-                        setLongitude(45.2833);
-                        showToast('📱 تم إعادة تعيين الدبوس إلى مركز السماوة الرئيسي.', 'system');
-                      }}
-                      className="bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-[9px] font-black px-2.5 h-7 shadow-md cursor-pointer border border-slate-200"
-                    >
-                      مركز السماوة
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => {
-                        setLatitude(31.5273);
-                        setLongitude(45.2033);
-                        showToast('📱 تم تصفير الدبوس لمركز الرميثة.', 'system');
-                      }}
-                      className="bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-[9px] font-black px-2.5 h-7 shadow-md cursor-pointer border border-slate-200"
-                    >
-                      مركز الرميثة
-                    </button>
+                  <div className="flex justify-between w-full items-end mt-auto pointer-events-auto">
+                    {/* Readout coordinates HUD */}
+                    <div className="bg-slate-900/95 text-white p-2 rounded-xl text-[9px] sm:text-[10px] font-mono border border-white/10 flex flex-col gap-0.5 shadow-md">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 font-bold w-6">LAT:</span>
+                        <span className="text-white font-black">{latitude?.toFixed(6)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 font-bold w-6">LNG:</span>
+                        <span className="text-white font-black">{longitude?.toFixed(6)}</span>
+                      </div>
+                    </div>
+
+                    {/* Center Presets resetters */}
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setLatitude(31.3167);
+                          setLongitude(45.2833);
+                          showToast('📱 تم إعادة تعيين الدبوس إلى مركز السماوة الرئيسي.', 'system');
+                        }}
+                        className="bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-[9px] font-black px-2 py-1.5 shadow-md cursor-pointer border border-slate-200"
+                      >
+                        قضاء السماوة
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          setLatitude(31.5273);
+                          setLongitude(45.2033);
+                          showToast('📱 تم تصفير الدبوس لمركز الرميثة.', 'system');
+                        }}
+                        className="bg-white hover:bg-slate-100 text-slate-800 rounded-lg text-[9px] font-black px-2 py-1.5 shadow-md cursor-pointer border border-slate-200"
+                      >
+                        قضاء الرميثة
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Coords Input boxes for manual fine-tuning */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 border-t border-slate-100 pt-3">
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold block">خط العرض اليدوي (Latitude):</span>
+                <span className="text-[10px] text-slate-500 font-bold block">خط العرض الرقمي (Latitude):</span>
                 <input 
                   type="number" 
                   step="any" 
                   value={latitude}
                   onChange={(e) => setLatitude(parseFloat(e.target.value) || 31.3167)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-center font-mono font-bold text-xs focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-center font-mono font-bold text-xs focus:outline-none"
                 />
               </div>
               <div className="space-y-1">
-                <span className="text-[10px] text-slate-500 font-bold block">خط الطول اليدوي (Longitude):</span>
+                <span className="text-[10px] text-slate-500 font-bold block">خط الطول الرقمي (Longitude):</span>
                 <input 
                   type="number" 
                   step="any" 
                   value={longitude}
                   onChange={(e) => setLongitude(parseFloat(e.target.value) || 45.2833)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-center font-mono font-bold text-xs focus:outline-none"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-center font-mono font-bold text-xs focus:outline-none"
                 />
               </div>
             </div>

@@ -153,7 +153,16 @@ export function AppStateProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('aqarat_properties');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved) as Property[];
+        const parsed = (JSON.parse(saved) as Property[]).map(p => {
+          // Self-heal: If the property belongs to a community but has standard broker 'b1', correct it to point to the community developer.
+          if (p.belongsToCommunity && p.communityId && (!p.broker || p.broker.id !== p.communityId)) {
+            const correctProp = mockCommunityProperties.find(mp => mp.id === p.id);
+            if (correctProp) {
+              return { ...p, broker: correctProp.broker };
+            }
+          }
+          return p;
+        });
         const existingIds = new Set(parsed.map(p => p.id));
         const missing = mockCommunityProperties.filter(p => !existingIds.has(p.id));
         if (missing.length > 0) {

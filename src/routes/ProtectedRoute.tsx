@@ -25,6 +25,11 @@ export default function ProtectedRoute({ children, allowedRoles = ['broker', 'ad
     );
   }
 
+  // Admin isolation rule: redirect admin from standard broker areas to the Administrative center
+  if (role === 'admin') {
+    return <Navigate to="/admin-dashboard" replace />;
+  }
+
   if (!isAuthenticated || !currentUser) {
     // Redirect them to the /auth page, but save the current location they were trying to go to
     return <Navigate to="/auth" state={{ from: location }} replace />;

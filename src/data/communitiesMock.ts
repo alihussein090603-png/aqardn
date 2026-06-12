@@ -68,7 +68,8 @@ export const getDynamicCommunities = (): InvestmentCommunity[] => {
             phone: c.phone || '07801234567',
             whatsapp: c.phone || '9647801234567',
             description: c.description || 'مجمع سكني استثماري مجهز بالكامل من الفئة المتطورة لتقديم نمط حياة راقٍ.',
-            blocks: c.blocks || ['البلوك A', 'البلوك B']
+            blocks: c.blocks || ['البلوك A', 'البلوك B'],
+            mapEmbedCode: c.mapEmbedCode || ''
           };
           if (idx > -1) {
             base[idx] = { ...base[idx], ...mapped };
@@ -164,7 +165,17 @@ mockCommunities.forEach((comm) => {
             'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80'
           ],
           isPremium: unit.unitNumber < 10,
-          broker: mockBrokers[0], // Al-Samawi
+          broker: {
+            id: comm.id,
+            name: comm.name,
+            avatar: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=200&q=80',
+            phone: comm.phone,
+            whatsapp: comm.whatsapp,
+            agencyName: comm.name,
+            rating: 5.0,
+            isVerified: true,
+            activeListingsCount: 15
+          },
           features: ['بنى تحتية متكاملة', 'أمن وحراسة ٢٤ ساعة', 'خط كهرباء ذهبي', 'طابو استثماري سند مستقل', 'تأسيسات غاز مركزية', 'عزل حراري ورطوبة عالي الجودة'],
           createdAt: '2026-06-05',
           views: 95 + unit.unitNumber * 3,

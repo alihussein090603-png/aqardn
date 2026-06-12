@@ -14,6 +14,21 @@ import PropertySharePoster from './property/PropertySharePoster';
 import RealEstateCalculator from './tools/RealEstateCalculator';
 import { useAppState } from '../context/AppStateContext';
 
+const extractMapUrl = (input: string): string => {
+  if (!input) return '';
+  const clean = input.trim();
+  if (clean.includes('<iframe')) {
+    const match = clean.match(/src="([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  if (clean.startsWith('http')) {
+    return clean;
+  }
+  return '';
+};
+
 interface PropertyDetailProps {
   property: Property;
   isWishlisted: boolean;
@@ -278,6 +293,65 @@ export default function PropertyDetail({
                   ✓ {feature}
                 </span>
               ))}
+            </div>
+          </div>
+
+          {/* Interactive Live Google Map Location Map Widget */}
+          <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-rose-600 fill-rose-50/50" />
+                <span>الموقع الميداني الجغرافي (خرائط Google Maps)</span>
+              </h3>
+              <a 
+                href={`https://www.google.com/maps/search/?api=1&query=${property.locationCoordinates?.latitude || property.latitude || 31.3167},${property.locationCoordinates?.longitude || property.longitude || 45.2833}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-emerald-800 bg-emerald-500/10 px-3 py-1.5 rounded-xl font-extrabold hover:bg-emerald-800 hover:text-white transition-all flex items-center gap-1 shrink-0 self-start"
+              >
+                <span>فتح في تطبيق خرائط Google ↗</span>
+              </a>
+            </div>
+
+            <p className="text-xs text-slate-500 font-bold leading-relaxed">
+              📍 العنوان المعتمد: {property.district} - {property.neighborhood} {property.addressDetails ? `( ${property.addressDetails} )` : ''}
+            </p>
+
+            {/* Embed container */}
+            <div className="aspect-video sm:aspect-[21/9] w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 relative shadow-inner">
+              {property.mapEmbedCode && extractMapUrl(property.mapEmbedCode) ? (
+                <iframe 
+                  src={extractMapUrl(property.mapEmbedCode)}
+                  title="موقع العقار الميداني"
+                  className="w-full h-full border-0"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : (property.locationCoordinates || (property.latitude && property.longitude)) ? (
+                <iframe 
+                  src={`https://maps.google.com/maps?q=${property.locationCoordinates?.latitude || property.latitude || 31.3167},${property.locationCoordinates?.longitude || property.longitude || 45.2833}&z=15&output=embed`}
+                  title="موقع العقار التفاعلي"
+                  className="w-full h-full border-0"
+                  allowFullScreen
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                  <span className="text-2xl mb-2">📍</span>
+                  <h4 className="text-xs font-black text-slate-700">لم يتم تزويد إحداثيات بقعية لهذا العقار</h4>
+                  <p className="text-[10px] text-slate-400 max-w-[280px]">يمكنك الاستدلال بالحي المذكور: {property.neighborhood}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 flex items-center justify-between text-xs">
+              <span className="text-[10px] text-slate-400 font-bold">بث المواقع يتم عبر الأقمار الصناعية بنظام GPS</span>
+              <div className="flex gap-4 font-mono text-[10px] text-slate-500 font-bold">
+                <span>LAT: {(property.locationCoordinates?.latitude || property.latitude || 31.3167).toFixed(5)}</span>
+                <span>LNG: {(property.locationCoordinates?.longitude || property.longitude || 45.2833).toFixed(5)}</span>
+              </div>
             </div>
           </div>
 

@@ -38,6 +38,7 @@ export interface InvestmentCommunity {
   whatsapp: string;
   description: string;
   blocks: string[]; // list of blocks e.g. ["البلوك A", "البلوك B", "البلوك C"]
+  mapEmbedCode?: string; // Google Maps embed iframe code or URL
 }
 
 export interface AdminUserRecord {
@@ -80,6 +81,7 @@ export interface Property {
   latitude?: number;
   longitude?: number;
   locationCoordinates?: { latitude: number; longitude: number };
+  mapEmbedCode?: string;
   
   // Community fields
   belongsToCommunity?: boolean;

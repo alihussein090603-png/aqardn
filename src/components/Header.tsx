@@ -38,9 +38,14 @@ export default function Header({
   const [topDrawerOpen, setTopDrawerOpen] = useState(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
-  const { role } = useAuth();
+  const { role, currentUserRecord } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isComp = role === 'community' ||
+                 currentUserRecord?.role === 'community' ||
+                 (currentUserRecord?.email || currentUser?.id || '').toLowerCase().includes('comp') || 
+                 (currentUser?.agencyName || '').includes('مجمع');
 
   const { 
     wishlist, 
@@ -72,7 +77,7 @@ export default function Header({
           <div className="flex items-center gap-3">
             
             {/* 1. Hamburger button on mobile/desktop screen formats, visible for logged in offices only */}
-            {currentUser && (
+            {currentUser && role !== 'admin' && (
               <button
                 onClick={() => setTopDrawerOpen(!topDrawerOpen)}
                 className="p-2 text-emerald-800 hover:text-emerald-950 hover:bg-emerald-50 rounded-xl transition-all duration-200 cursor-pointer focus:outline-none flex items-center justify-center border border-slate-100"
@@ -143,17 +148,19 @@ export default function Header({
 
             {currentUser ? (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onNavigate('dashboard')}
-                  className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                    activePage === 'dashboard'
-                      ? 'text-emerald-800 bg-emerald-500/10 font-black'
-                      : 'text-slate-600 hover:text-emerald-800 hover:bg-slate-50'
-                  }`}
-                >
-                  <LayoutDashboard className="w-3.5 h-3.5 text-emerald-800" />
-                  <span>لوحة المكتب</span>
-                </button>
+                {role !== 'admin' && (
+                  <button
+                    onClick={() => onNavigate('dashboard')}
+                    className={`px-4 py-2 text-xs font-extrabold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      activePage === 'dashboard'
+                        ? 'text-emerald-800 bg-emerald-500/10 font-black'
+                        : 'text-slate-600 hover:text-emerald-800 hover:bg-slate-50'
+                    }`}
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5 text-emerald-800" />
+                    <span>لوحة المكتب</span>
+                  </button>
+                )}
 
                 {role === 'admin' && (
                   <button
@@ -187,16 +194,29 @@ export default function Header({
                         <p className="font-extrabold text-slate-800">{currentUser.agencyName || 'مكتب عقاري معتمد'}</p>
                         <p className="text-[9px] mt-0.5">الهاتف: {currentUser.phone || 'غير مسجل'}</p>
                       </div>
-                      <button
-                        onClick={() => {
-                          setDropdownOpen(false);
-                          onNavigate('dashboard');
-                        }}
-                        className="w-full px-3.5 py-2 text-right text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-800 flex items-center gap-2"
-                      >
-                        <LayoutDashboard className="w-3.5 h-3.5 text-slate-500" />
-                        لوحة التحكم العقارية
-                      </button>
+                      {role === 'admin' ? (
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            navigate('/admin-dashboard');
+                          }}
+                          className="w-full px-3.5 py-2 text-right text-xs font-semibold text-amber-600 hover:bg-amber-500/5 flex items-center gap-2"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />
+                          اللوحة الإدارية العليا
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setDropdownOpen(false);
+                            onNavigate('dashboard');
+                          }}
+                          className="w-full px-3.5 py-2 text-right text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-800 flex items-center gap-2"
+                        >
+                          <LayoutDashboard className="w-3.5 h-3.5 text-slate-500" />
+                          لوحة التحكم العقارية
+                        </button>
+                      )}
                       <button
                         onClick={() => {
                           setDropdownOpen(false);
@@ -234,61 +254,97 @@ export default function Header({
             <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 
-                {/* 1. الرئيسية (لوحة التحكم) */}
-                <button
-                  onClick={() => {
-                    setTopDrawerOpen(false);
-                    navigate('/dashboard');
-                  }}
-                  className="p-5 rounded-2xl bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-100/60 flex flex-col items-center justify-center gap-3 text-center transition-all cursor-pointer group hover:border-emerald-300 hover:shadow-md"
-                >
-                  <div className="p-3 bg-white rounded-full text-emerald-800 shadow-sm border border-emerald-50/50 group-hover:scale-110 transition-transform">
-                    <LayoutDashboard className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-black text-slate-800 font-sans">📊 الرئيسية (لوحة التحكم)</span>
-                </button>
-
-                {/* 2. عقاراتي */}
-                <button
-                  onClick={() => {
-                    setTopDrawerOpen(false);
-                    navigate('/dashboard/my-properties');
-                  }}
-                  className="p-5 rounded-2xl bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-100/60 flex flex-col items-center justify-center gap-3 text-center transition-all cursor-pointer group hover:border-emerald-300 hover:shadow-md"
-                >
-                  <div className="p-3 bg-white rounded-full text-emerald-800 shadow-sm border border-emerald-50/50 group-hover:scale-110 transition-transform">
-                    <Building className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-black text-slate-800 font-sans">🏢 عقاراتي</span>
-                </button>
-
-                {/* 3. إضافة عقار جديد */}
-                <button
-                  onClick={() => {
-                    setTopDrawerOpen(false);
-                    navigate('/dashboard/add-property');
-                  }}
-                  className="p-5 rounded-2xl bg-amber-50/20 hover:bg-amber-50/40 border border-amber-100/60 flex flex-col items-center justify-center gap-3 text-center transition-all cursor-pointer group hover:border-amber-300 hover:shadow-md"
-                >
-                  <div className="p-3 bg-white rounded-full text-amber-600 shadow-sm border-amber-50/50 group-hover:scale-110 transition-transform">
-                    <PlusCircle className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-black text-slate-800 font-sans">➕ إضافة عقار جديد</span>
-                </button>
-
-                {/* 4. الرسائل والطلبات */}
-                <button
-                  onClick={() => {
-                    setTopDrawerOpen(false);
-                    navigate('/dashboard/leads');
-                  }}
-                  className="p-5 rounded-2xl bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-100/60 flex flex-col items-center justify-center gap-3 text-center transition-all cursor-pointer group hover:border-emerald-300 hover:shadow-md"
-                >
-                  <div className="p-3 bg-white rounded-full text-emerald-800 shadow-sm border border-emerald-50/50 group-hover:scale-110 transition-transform">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-black text-slate-800 font-sans">💬 الرسائل والطلبات</span>
-                </button>
+                {/* Dynamic drawer items for Community partners or standard Real Estate offices */}
+                {(isComp ? [
+                  {
+                    label: '📊 الرئيسية (لوحة التحكم)',
+                    path: '/dashboard',
+                    icon: LayoutDashboard,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  },
+                  {
+                    label: '🏢 وحدات المجمع النشطة',
+                    path: '/dashboard/my-properties',
+                    icon: Building,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  },
+                  {
+                    label: '➕ إدراج وحدة جديدة',
+                    path: '/dashboard/add-property',
+                    icon: PlusCircle,
+                    color: 'text-amber-600',
+                    bg: 'bg-amber-50/20 hover:bg-amber-50/40 hover:border-amber-300'
+                  },
+                  {
+                    label: '💬 الطلبات والمطابقات الخاصة',
+                    path: '/dashboard/leads',
+                    icon: MessageSquare,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  },
+                  {
+                    label: '✨ تصميم بطاقة المجمع',
+                    path: '/dashboard/community-card',
+                    icon: Sparkles,
+                    color: 'text-indigo-600',
+                    bg: 'bg-indigo-50/20 hover:bg-indigo-50/40 hover:border-indigo-300'
+                  },
+                  {
+                    label: '👤 بيانات حسابي الشخصي',
+                    path: '/dashboard/profile',
+                    icon: User,
+                    color: 'text-blue-600',
+                    bg: 'bg-blue-50/20 hover:bg-blue-50/40 hover:border-blue-300'
+                  }
+                ] : [
+                  {
+                    label: '📊 الرئيسية (لوحة التحكم)',
+                    path: '/dashboard',
+                    icon: LayoutDashboard,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  },
+                  {
+                    label: '🏢 عقاراتي (إدارة الإعلانات)',
+                    path: '/dashboard/my-properties',
+                    icon: Building,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  },
+                  {
+                    label: '➕ إضافة عقار جديد',
+                    path: '/dashboard/add-property',
+                    icon: PlusCircle,
+                    color: 'text-amber-600',
+                    bg: 'bg-amber-50/20 hover:bg-amber-50/40 hover:border-amber-300'
+                  },
+                  {
+                    label: '💬 الرسائل والطلبات',
+                    path: '/dashboard/leads',
+                    icon: MessageSquare,
+                    color: 'text-emerald-800',
+                    bg: 'bg-emerald-50/40 hover:bg-emerald-50 hover:border-emerald-300'
+                  }
+                ]).map((item, index) => {
+                  const IconComp = item.icon;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setTopDrawerOpen(false);
+                        navigate(item.path);
+                      }}
+                      className={`p-5 rounded-2xl ${item.bg} border border-slate-150 flex flex-col items-center justify-center gap-3 text-center transition-all cursor-pointer group hover:shadow-md`}
+                    >
+                      <div className={`p-3 bg-white rounded-full ${item.color} shadow-sm border border-slate-50 group-hover:scale-110 transition-transform`}>
+                        <IconComp className="w-6 h-6 animate-pulse-subtle" />
+                      </div>
+                      <span className="text-xs font-black text-slate-800 font-sans">{item.label}</span>
+                    </button>
+                  );
+                })}
 
               </div>
             </div>

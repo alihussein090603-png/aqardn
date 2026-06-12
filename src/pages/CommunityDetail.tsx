@@ -128,7 +128,7 @@ export default function CommunityDetail(): React.ReactElement {
       </div>
 
       {/* Main Image banner representing the luxury brochure */}
-      <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden shadow-sm mb-8 bg-slate-100 border border-slate-200/50">
+      <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden shadow-sm mb-6 bg-slate-100 border border-slate-200/50">
         <img
           src={community.coverImage}
           alt={community.name}
@@ -136,6 +136,35 @@ export default function CommunityDetail(): React.ReactElement {
           referrerPolicy="no-referrer"
         />
       </div>
+
+      {/* Geographics & Real Estate Google Map section */}
+      {community.mapEmbedCode && (
+        <div className="bg-white rounded-3xl border border-slate-200/50 p-6 mb-8 shadow-sm">
+          <h3 className="text-sm sm:text-base font-black text-slate-900 mb-4 flex items-center gap-2">
+            <span className="p-1.5 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center">
+              <MapPin className="w-4 h-4 text-emerald-800" />
+            </span>
+            <span>موقع وتخطيط المجمع الجغرافي التفاعلي:</span>
+          </h3>
+          <div className="aspect-[21/9] w-full rounded-2xl overflow-hidden border border-slate-100 bg-slate-50 relative shadow-inner min-h-[280px]">
+            <iframe 
+              src={(() => {
+                const input = community.mapEmbedCode || '';
+                if (input.includes('<iframe')) {
+                  const match = input.match(/src="([^"]+)"/);
+                  if (match && match[1]) return match[1];
+                }
+                return input;
+              })()}
+              title={`موقع ${community.name} الجغرافي`}
+              className="w-full h-full border-0 absolute inset-0"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Sub-header section: Properties list label */}
       <div className="mb-6 font-sans mt-8">

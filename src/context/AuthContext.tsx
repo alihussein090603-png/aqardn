@@ -7,7 +7,7 @@ import {
   User as FirebaseUser,
   AuthError
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db, OperationType, handleFirestoreError, isMockConfig } from '../services/firebase';
 import { Broker } from '../types';
 
@@ -24,6 +24,7 @@ export interface UserType {
   role: 'seeker' | 'broker' | 'admin' | 'community';
   isVerified: boolean;
   createdAt: any;
+  passwordHash?: string;
 }
 
 interface AuthContextType {
@@ -44,7 +45,7 @@ interface AuthContextType {
   
   // Backwards compatibility supporting older template layout components
   login: (broker: Broker) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -319,6 +320,117 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // 2. RESILIENT FALLBACK: Check default testing broker and community accounts pre-emptively
+      const defaults = [
+        {
+          uid: 'b1',
+          name: 'الحاج أبو علي السماوي',
+          email: 'office2026_b1@aqardn.com',
+          agencyName: 'مكتب السماوي للعقارات والمقاولات',
+          phone: '07801234567',
+          role: 'broker',
+          pass: '123456'
+        },
+        {
+          uid: 'b2',
+          name: 'المهندس رائد الخفاجي',
+          email: 'office2026_b2@aqardn.com',
+          agencyName: 'مكتب الغدير العقاري - السماوة',
+          phone: '07709876543',
+          role: 'broker',
+          pass: '123456'
+        },
+        {
+          uid: 'b3',
+          name: 'ضياء عادل الرميثي',
+          email: 'office2026_b3@aqardn.com',
+          agencyName: 'مكتب الرميثة للخدمات العقارية',
+          phone: '07812345678',
+          role: 'broker',
+          pass: '123456'
+        },
+        {
+          uid: 'office-demo-1',
+          name: 'الأستاذ ناصر الحمامي',
+          email: 'office2026_nasr@aqardn.com',
+          agencyName: 'مكتب الحمامي للعقارات والمقاولات',
+          phone: '07802879555',
+          role: 'broker',
+          pass: '123456'
+        },
+        {
+          uid: 'office-demo-2',
+          name: 'الأستاذ وضاح السماوي',
+          email: 'office2026_waddah@aqardn.com',
+          agencyName: 'مكتب الوفاء للاستثمارات السكنية',
+          phone: '07702223334',
+          role: 'broker',
+          pass: 'waddah2026'
+        },
+        {
+          uid: 'comm-sudeer',
+          name: 'مجمع السدير السكني الاستثماري',
+          email: 'comp2026_sudeer@aqardn.com',
+          agencyName: 'مجمع السدير السكني الاستثماري',
+          phone: '07802003001',
+          role: 'community',
+          pass: 'sudeer2026'
+        },
+        {
+          uid: 'comm-narjis',
+          name: 'مجمع النرجس السكني المتكامل',
+          email: 'comp2026_narjis@aqardn.com',
+          agencyName: 'مجمع النرجس السكني المتكامل',
+          phone: '07705006002',
+          role: 'community',
+          pass: 'narjis2026'
+        },
+        {
+          uid: 'comm-tabarak',
+          name: 'مجمع تبارك السكني الذكي',
+          email: 'comp2026_tabarak@aqardn.com',
+          agencyName: 'مجمع تبارك السكني الذكي',
+          phone: '07817008003',
+          role: 'community',
+          pass: 'tabarak2026'
+        }
+      ];
+
+      const matchedDefault = defaults.find(d => d.email === cleanEmailStr && d.pass === pass);
+      if (matchedDefault) {
+        const defaultBroker: Broker = {
+          id: matchedDefault.uid,
+          name: matchedDefault.name,
+          avatar: matchedDefault.role === 'community'
+            ? 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=150&q=80'
+            : 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&w=150&q=80',
+          phone: matchedDefault.phone,
+          whatsapp: '964' + matchedDefault.phone.replace(/^0/, ''),
+          agencyName: matchedDefault.agencyName,
+          rating: 4.9,
+          isVerified: true,
+          activeListingsCount: matchedDefault.role === 'community' ? 0 : 5
+        };
+        const defaultUser: UserType = {
+          uid: matchedDefault.uid,
+          name: matchedDefault.name,
+          email: matchedDefault.email,
+          phone: matchedDefault.phone,
+          whatsapp: '964' + matchedDefault.phone.replace(/^0/, ''),
+          agencyName: matchedDefault.agencyName,
+          role: matchedDefault.role as any,
+          isVerified: true,
+          createdAt: new Date().toISOString()
+        };
+        setCurrentUser(defaultBroker);
+        setCurrentUserRecord(defaultUser);
+        setRole(matchedDefault.role as any);
+        localStorage.setItem('aqarat_user', JSON.stringify(defaultBroker));
+        localStorage.setItem('aqarat_user_record', JSON.stringify(defaultUser));
+        setIsLoadingDoc(false);
+        return;
+      }
+
       // If we are in mock mode, bypass real network calls to avoid long timeouts/slowness
       if (isMockConfig) {
         const mockName = cleanEmailStr.split('@')[0];
@@ -365,26 +477,161 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { cleanEmail, cleanPass } = sanitizeAndValidate(email, pass);
       
       // Attempt login with Firebase
-      const credentials = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
-      
-      // Perform background retrieval with retry logic
+      let credentials = null;
+      let loginSuccess = false;
       try {
-        const snap = await fetchUserDocWithRetry(credentials.user.uid);
+        credentials = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+        loginSuccess = true;
+      } catch (authErr: any) {
+        console.warn("Firebase Auth normal login failed, evaluating database document match fallback...", authErr);
+        
+        // 3. DATABASE FALLBACK FOR PRE-CREATED USERS/COMMUNITIES (created on DB first with custom hash)
+        try {
+          const usersRef = collection(db, 'users');
+          const q = query(usersRef, where('email', '==', cleanEmail));
+          const querySnapshot = await getDocs(q);
 
-        if (snap.exists()) {
-          const uRec = snap.data() as UserType;
-          setCurrentUserRecord(uRec);
-          setRole(uRec.role);
-          const mapped = mapUserToBroker(uRec);
-          setCurrentUser(mapped);
-          localStorage.setItem('aqarat_user', JSON.stringify(mapped));
-          localStorage.setItem('aqarat_user_record', JSON.stringify(uRec));
+          if (!querySnapshot.empty) {
+            const userDoc = querySnapshot.docs[0];
+            const uRec = userDoc.data() as UserType;
+            
+            if (uRec.passwordHash) {
+              const decodedSalted = atob(uRec.passwordHash);
+              const salt = "aqardn_secure_2026_";
+              if (decodedSalted.startsWith(salt)) {
+                const plainPassword = decodedSalted.substring(salt.length);
+                if (plainPassword === pass) {
+                  // Valid database credential - Log in user locally bypassing auth service record
+                  setCurrentUserRecord(uRec);
+                  setRole(uRec.role);
+                  const mapped = mapUserToBroker(uRec);
+                  setCurrentUser(mapped);
+                  localStorage.setItem('aqarat_user', JSON.stringify(mapped));
+                  localStorage.setItem('aqarat_user_record', JSON.stringify(uRec));
+                  setIsLoadingDoc(false);
+                  return;
+                }
+              }
+            }
+          }
+        } catch (dbErr) {
+          console.error("Failed to query fallback users collection:", dbErr);
         }
-      } catch (authDocErr: any) {
-        console.error("خطأ جلب وثيقة المستخدم عند تسجيل الدخول:", authDocErr);
-        // If profile fetch fails, but user authenticated, fallback gracefully using standard user metadata or cache
-        setAuthError(translateConnectionError(authDocErr));
-        throw authDocErr;
+
+        // Check local storage cached lists of communities or brokers
+        try {
+          const cachedCompStr = localStorage.getItem('aqarat_cached_communities');
+          if (cachedCompStr) {
+            const list = JSON.parse(cachedCompStr);
+            const foundComp = list.find((c: any) => (c.email || '').toLowerCase() === cleanEmail);
+            if (foundComp && foundComp.passwordHash) {
+              const decodedSalted = atob(foundComp.passwordHash);
+              const salt = "aqardn_secure_2026_";
+              if (decodedSalted.startsWith(salt)) {
+                const plainPassword = decodedSalted.substring(salt.length);
+                if (plainPassword === pass) {
+                  const uRec: UserType = {
+                    uid: foundComp.id,
+                    name: foundComp.name,
+                    email: foundComp.email,
+                    phone: foundComp.phone,
+                    whatsapp: '964' + foundComp.phone.replace(/^0/, ''),
+                    agencyName: foundComp.name,
+                    role: 'community',
+                    isVerified: true,
+                    createdAt: foundComp.createdAt || new Date().toISOString()
+                  };
+                  setCurrentUserRecord(uRec);
+                  setRole('community');
+                  const mapped = mapUserToBroker(uRec);
+                  setCurrentUser(mapped);
+                  localStorage.setItem('aqarat_user', JSON.stringify(mapped));
+                  localStorage.setItem('aqarat_user_record', JSON.stringify(uRec));
+                  setIsLoadingDoc(false);
+                  return;
+                }
+              }
+            }
+          }
+
+          const cachedOfficesStr = localStorage.getItem('aqarat_cached_offices');
+          if (cachedOfficesStr) {
+            const list = JSON.parse(cachedOfficesStr);
+            const foundOffice = list.find((c: any) => (c.email || '').toLowerCase() === cleanEmail);
+            if (foundOffice && foundOffice.passwordHash) {
+              const decodedSalted = atob(foundOffice.passwordHash);
+              const salt = "aqardn_secure_2026_";
+              if (decodedSalted.startsWith(salt)) {
+                const plainPassword = decodedSalted.substring(salt.length);
+                if (plainPassword === pass) {
+                  const uRec: UserType = {
+                    uid: foundOffice.uid || foundOffice.id,
+                    name: foundOffice.name,
+                    email: foundOffice.email,
+                    phone: foundOffice.phone,
+                    whatsapp: foundOffice.whatsapp || ('964' + foundOffice.phone.replace(/^0/, '')),
+                    agencyName: foundOffice.agencyName || foundOffice.name,
+                    role: foundOffice.role || 'broker',
+                    isVerified: foundOffice.isVerified !== undefined ? foundOffice.isVerified : true,
+                    createdAt: foundOffice.createdAt || new Date().toISOString()
+                  };
+                  setCurrentUserRecord(uRec);
+                  setRole('broker');
+                  const mapped = mapUserToBroker(uRec);
+                  setCurrentUser(mapped);
+                  localStorage.setItem('aqarat_user', JSON.stringify(mapped));
+                  localStorage.setItem('aqarat_user_record', JSON.stringify(uRec));
+                  setIsLoadingDoc(false);
+                  return;
+                }
+              }
+            }
+          }
+        } catch (cacheErr) {
+          console.error("Failed to check local Storage matching cache fallback:", cacheErr);
+        }
+        
+        // If neither matched, raise original firebase auth sign-in error
+        const errMsg = translateConnectionError(authErr);
+        setAuthError(errMsg);
+        throw authErr;
+      }
+      
+      if (loginSuccess && credentials) {
+        // Perform background retrieval with retry logic
+        try {
+          const snap = await fetchUserDocWithRetry(credentials.user.uid);
+
+          if (snap.exists()) {
+            const uRec = snap.data() as UserType;
+            setCurrentUserRecord(uRec);
+            setRole(uRec.role);
+            const mapped = mapUserToBroker(uRec);
+            setCurrentUser(mapped);
+            localStorage.setItem('aqarat_user', JSON.stringify(mapped));
+            localStorage.setItem('aqarat_user_record', JSON.stringify(uRec));
+          } else {
+            // Under unpopulated scenarios, build generic Seeker user state
+            const seekerUser: UserType = {
+              uid: credentials.user.uid,
+              name: credentials.user.displayName || 'زائر جديد',
+              email: credentials.user.email || '',
+              phone: credentials.user.phoneNumber || '+9647700000000',
+              whatsapp: credentials.user.phoneNumber ? `wa.me/${credentials.user.phoneNumber.replace('+', '')}` : '',
+              agencyName: 'مكتب عقاري تجريبي',
+              role: 'seeker',
+              isVerified: false,
+              createdAt: new Date().toISOString()
+            };
+            setCurrentUserRecord(seekerUser);
+            setRole('seeker');
+            setCurrentUser(mapUserToBroker(seekerUser));
+          }
+        } catch (authDocErr: any) {
+          console.error("خطأ جلب وثيقة المستخدم عند تسجيل الدخول:", authDocErr);
+          setAuthError(translateConnectionError(authDocErr));
+          throw authDocErr;
+        }
       }
     } catch (err: any) {
       console.warn("Authentication block rejected context:", err);
@@ -602,8 +849,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('aqarat_user_record', JSON.stringify(mockUser));
   };
 
-  const logout = () => {
-    signOutUser();
+  const logout = async () => {
+    await signOutUser();
   };
 
   const value: AuthContextType = {

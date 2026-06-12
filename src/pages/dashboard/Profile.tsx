@@ -141,7 +141,7 @@ export default function Profile(): React.ReactElement {
           {/* Card right: config input settings form */}
           <form onSubmit={handleUpdateProfile} className="md:col-span-2 space-y-6">
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6">
               
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">الاسم الكامل لصاحب المكتب العقاري:</label>
@@ -157,17 +157,6 @@ export default function Profile(): React.ReactElement {
                     <User className="w-4 h-4" />
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">الاسم الفني للشركة أو المكتب العقاري:</label>
-                <input
-                  type="text"
-                  required
-                  value={agencyName}
-                  onChange={(e) => setAgencyName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs focus:ring-1 focus:ring-emerald-800 focus:outline-none focus:bg-white text-right"
-                />
               </div>
 
             </div>
